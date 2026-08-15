@@ -42,6 +42,14 @@
     el.textContent = '管理员模式已启用 ✓';
     el.className = 'sub ok';
   }
+  function applyNormalMode() {
+    state.verified = false;
+    $('license-desc').textContent = '输入服务密钥解锁清理（有效期内可反复使用）';
+    $('key-row').hidden = false;
+    const el = $('key-status');
+    el.textContent = '';
+    el.className = 'sub';
+  }
 
   async function loadOverview() {
     const r = await api('GET', '/api/overview');
@@ -263,7 +271,8 @@
 
   applyAdminMode();
 
-  $('admin-link').onclick = () => {
+  $('admin-link').onclick = (e) => {
+    e.preventDefault();
     $('admin-modal').hidden = false;
     if (adminKey) { $('admin-login').hidden = true; renderAdminPanel(); }
     else { $('admin-login').hidden = false; $('admin-panel').hidden = true; $('admin-msg').textContent = ''; }
@@ -274,12 +283,13 @@
     if (!key) return;
     const r = await api('GET', '/api/admin/status', null, { 'X-Admin-Key': key });
     if (!r.ok) {
-      $('admin-msg').textContent = '主密钥错误（401）';
+      $('admin-msg').textContent = r.error === 'network' ? '无法连接本地服务' : '主密钥错误（401）';
       $('admin-msg').className = 'sub bad';
       return;
     }
     adminKey = key;
     try { sessionStorage.setItem('dkcAdminKey', key); } catch (e) {}
+    $('admin-key-input').value = '';
     $('admin-login').hidden = true;
     applyAdminMode();
     renderAdminPanel();
@@ -290,6 +300,7 @@
     if (!r.ok) {
       adminKey = '';
       try { sessionStorage.removeItem('dkcAdminKey'); } catch (e) {}
+      applyNormalMode();
       $('admin-panel').hidden = true;
       $('admin-login').hidden = false;
       $('admin-msg').textContent = '主密钥已失效，请重新输入';
@@ -311,6 +322,7 @@
     if (!confirm('确认清除本机全部授权状态？清除后客户密钥需重新验证。')) return;
     const r = await api('POST', '/api/admin/license/reset', {}, adminHeaders());
     if (r.ok) location.reload();
+    else alert('重置授权失败：' + (r.error || '未知错误'));
   };
 
   loadOverview();

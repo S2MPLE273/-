@@ -66,7 +66,10 @@
 </main>
 <div id="admin-modal" class="modal-mask" hidden>
   <div class="modal">
-    <h3>服务方管理面板</h3>
+    <div class="modal-head">
+      <h3>服务方管理面板</h3>
+      <button id="admin-close" class="btn-secondary">关闭</button>
+    </div>
     <div id="admin-login">
       <p class="sub">输入主密钥（tools/master.key，64 位 hex）</p>
       <div class="row">
@@ -79,7 +82,6 @@
       <div class="card admin-card" id="admin-status"></div>
       <div class="row">
         <button id="admin-reset" class="btn-danger">重置授权状态</button>
-        <button id="admin-close" class="btn-secondary">关闭</button>
       </div>
       <p class="sub">管理员模式下，清理页验证框将显示"管理员模式：无需密钥"，可直接清理。</p>
     </div>
