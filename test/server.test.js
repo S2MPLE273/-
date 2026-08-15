@@ -88,6 +88,18 @@ test('clean with non-array items returns 400, no crash', async () => {
   srv.close();
 });
 
+test('oversized body receives 413', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const status = await new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/scan?token=tok', headers: { 'Content-Type': 'application/json' } }, res => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+    r.on('error', reject);
+    r.write(JSON.stringify({ disk: 'C:\\', pad: 'x'.repeat(1_100_000) }));
+    r.end();
+  });
+  assert.equal(status, 413);
+  srv.close();
+});
+
 test('verify passes machine-bound state (machineGuid + state supplied)', async () => {
   // 单机绑定接线验证：license.verify 必须收到 machineGuid 与 file-backed state
   let received;

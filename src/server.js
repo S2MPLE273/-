@@ -72,7 +72,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
   function readBody(req) {
     return new Promise((resolve) => {
       let b = '';
-      req.on('data', c => { b += c; if (b.length > 1e6) { req.destroy(); resolve({ overflow: true }); } });
+      req.on('data', c => { b += c; if (b.length > 1e6) { resolve({ overflow: true }); req.pause(); } });
       req.on('end', () => { try { resolve(b ? JSON.parse(b) : null); } catch (e) { resolve({ badJson: true }); } });
       req.on('error', () => resolve(null));
     });
