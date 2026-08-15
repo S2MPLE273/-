@@ -63,7 +63,13 @@ async function main() {
   const diagnose = createDiagnose({ listProcs: async () => { try { return (await psutil.getSysInfo()).procs.split(','); } catch (e) { return []; } } });
   const scanner = createScanner({ psutil });
   const cleaner = createCleaner({ psutil, diagnose });
-  const deps = { license, scanner, cleaner, psutil, machineGuid: info.machineGuid, loadState, saveState };
+  const deps = {
+    license, scanner, cleaner, psutil,
+    machineGuid: info.machineGuid, loadState, saveState,
+    masterKey,
+    version: require('../package.json').version,
+    removeState: () => { try { fs.unlinkSync(STATE_FILE); } catch (e) {} },
+  };
 
   let webui;
   try { webui = require('./webui-inline'); } catch (e) { webui = { html: '', css: '', js: '' }; }

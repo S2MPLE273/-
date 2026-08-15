@@ -1,4 +1,5 @@
 const http = require('node:http');
+const crypto = require('node:crypto');
 
 function json(res, status, obj) {
   const body = JSON.stringify(obj);
@@ -6,8 +7,26 @@ function json(res, status, obj) {
   res.end(body);
 }
 
-function createServer({ port, token, webui, license, scanner, cleaner, psutil, machineGuid = 'unknown', loadState, saveState }) {
+function createServer({ port, token, webui, license, scanner, cleaner, psutil, machineGuid = 'unknown', loadState, saveState, masterKey = '', removeState, version = '0.0.0' }) {
   const tasks = new Map();
+
+  masterKey = (masterKey || '').toLowerCase();
+
+  function isAdminReq(req) {
+    const h = String(req.headers['x-admin-key'] || '');
+    if (!masterKey || h.length !== 64 || !/^[0-9a-f]{64}$/i.test(h)) return false;
+    try { return crypto.timingSafeEqual(Buffer.from(h.toLowerCase(), 'hex'), Buffer.from(masterKey, 'hex')); }
+    catch (e) { return false; }
+  }
+
+  async function runClean(body) {
+    const items = (body && body.items) || [];
+    const known = new Set(scanner.getItems().map(i => i.id));
+    if (!Array.isArray(items) || !items.length || !items.every(id => known.has(id))) return { status: 400, body: { ok: false, error: 'invalid item id' } };
+    const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
+    try { const r = await cleaner.clean({ disk, items }, () => {}); return { status: 200, body: { ok: true, data: r } }; }
+    catch (e) { return { status: 500, body: { ok: false, error: e.message } }; }
+  }
 
   function verifyKey(key) {
     const state = loadState ? (loadState() || { entries: {} }) : { entries: {} };
@@ -60,12 +79,29 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     if (req.method === 'POST' && p === '/api/clean') {
       const v = verifyKey((body && body.key) || '');
       if (!v.ok) return json(res, 403, { ok: false, error: 'license_' + v.reason, data: v });
-      const items = (body && body.items) || [];
-      const known = new Set(scanner.getItems().map(i => i.id));
-      if (!Array.isArray(items) || !items.length || !items.every(id => known.has(id))) return json(res, 400, { ok: false, error: 'invalid item id' });
-      const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
-      try { const res2 = await cleaner.clean({ disk, items }, () => {}); return json(res, 200, { ok: true, data: res2 }); }
-      catch (e) { return json(res, 500, { ok: false, error: e.message }); }
+      const r = await runClean(body);
+      return json(res, r.status, r.body);
+    }
+    if (req.method === 'GET' && p === '/api/admin/status') {
+      if (!isAdminReq(req)) return json(res, 401, { ok: false, error: 'unauthorized' });
+      const state = loadState ? (loadState() || { entries: {} }) : { entries: {} };
+      return json(res, 200, { ok: true, data: {
+        version,
+        fingerprint: masterKey.slice(0, 8),
+        machineGuid,
+        scanRunning: [...tasks.values()].filter(t => t.status === 'running').length,
+        license: { entries: state.entries || {} },
+      } });
+    }
+    if (req.method === 'POST' && p === '/api/admin/clean') {
+      if (!isAdminReq(req)) return json(res, 401, { ok: false, error: 'unauthorized' });
+      const r = await runClean(body);
+      return json(res, r.status, r.body);
+    }
+    if (req.method === 'POST' && p === '/api/admin/license/reset') {
+      if (!isAdminReq(req)) return json(res, 401, { ok: false, error: 'unauthorized' });
+      try { if (removeState) removeState(); } catch (e) {}
+      return json(res, 200, { ok: true, data: { reset: true } });
     }
     json(res, 404, { ok: false, error: 'not found' });
   }
