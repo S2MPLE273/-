@@ -9,12 +9,15 @@ const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const MASTER_KEY_FILE = path.join(__dirname, 'master.key');
 const SENTINEL = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
-const DEV_FALLBACK = "'a'.repeat(64)";
 
 function ensureMasterKey() {
   if (!fs.existsSync(MASTER_KEY_FILE)) {
     fs.writeFileSync(MASTER_KEY_FILE, crypto.randomBytes(32).toString('hex'));
     console.log('generated tools/master.key (keep it safe & secret)');
+    console.log('********************************************************************');
+    console.log('* 已生成新的主密钥——若此前已分发过 exe 或 keygen.html，旧密钥将全部失效；');
+    console.log('* 请重新构建并重新分发两个产物。');
+    console.log('********************************************************************');
   }
   const key = fs.readFileSync(MASTER_KEY_FILE, 'utf8').trim();
   if (!/^[0-9a-f]{64}$/i.test(key)) throw new Error('tools/master.key invalid: must be 64 hex chars');
@@ -34,18 +37,19 @@ function buildKeygen(masterKey) {
   fs.writeFileSync(path.join(DIST, 'keygen.html'), tpl.replace('__MASTER_KEY__', masterKey));
 }
 
-function assertBundleSafety(bundle) {
-  // Task 9 审查要求：打包产物不得包含 dev 回退密钥，否则主密钥注入失败时静默使用公开密钥
+function assertBundleSafety(bundle, masterKey) {
+  // 正向断言：产物必须实际包含主密钥；同时禁止残留 sentinel 或公开 dev 密钥（否则注入失败时静默走回退）
   if (bundle.includes('__MASTER_KEY__')) throw new Error('bundle contains __MASTER_KEY__ sentinel — esbuild define failed');
-  if (bundle.includes(DEV_FALLBACK)) throw new Error('bundle contains dev fallback master key expression — injection check failed');
-  if (bundle.includes('a'.repeat(64))) throw new Error('bundle contains dev fallback master key literal (64 a\'s) — injection check failed');
+  if (!bundle.includes(JSON.stringify(masterKey))) throw new Error('bundle does not contain the master key — injection failed');
+  const devKey64 = 'a'.repeat(64);
+  if (bundle.includes(devKey64)) throw new Error('bundle contains the public dev key — refusing to ship DRM-defeated build');
 }
 
 function verifyFuseFlipped(exePath) {
-  // node.exe 内嵌 "NODE_SEA_FUSE_...:0"；postject 将末字符翻为 ":1" 表示已注入 blob。
-  // 若仍为 ":0"，该 exe 会当作普通 node 启动（无脚本，静默退出）——必须抛错而不是产出废品。
+  // node.exe 内嵌 "NODE_SEA_FUSE_...:0"；postject 将末字符翻为 ":1" 表示已注入 blob（ASCII 编码，实测确认）。
+  // 必须正向断言 ":1" 存在——若 fuse 未翻转，该 exe 会当作普通 node 启动（无脚本，静默退出），产出废品。
   const buf = fs.readFileSync(exePath);
-  if (buf.includes(Buffer.from(SENTINEL + ':0'))) throw new Error('SEA fuse not flipped in ' + exePath + ' — postject --sentinel-fuse failed');
+  if (!buf.includes(Buffer.from(SENTINEL + ':1'))) throw new Error('SEA fuse not flipped in ' + exePath + ' — postject --sentinel-fuse failed');
 }
 
 function main() {
@@ -68,8 +72,7 @@ function main() {
   });
 
   const bundle = fs.readFileSync(bundleOut, 'utf8');
-  if (bundle.includes('__MASTER_KEY__')) throw new Error('bundle still contains __MASTER_KEY__ sentinel — define failed');
-  assertBundleSafety(bundle);
+  assertBundleSafety(bundle, masterKey);
 
   const seaConfig = {
     main: path.join(DIST, 'bundle.cjs'),
@@ -78,14 +81,17 @@ function main() {
     useCodeCache: true,
   };
   fs.writeFileSync(path.join(DIST, 'sea-config.json'), JSON.stringify(seaConfig));
-  execFileSync('node', ['--experimental-sea-config', path.join(DIST, 'sea-config.json')], { cwd: ROOT, stdio: 'inherit' });
+  execFileSync(process.execPath, ['--experimental-sea-config', path.join(DIST, 'sea-config.json')], { cwd: ROOT, stdio: 'inherit' });
 
   const exeOut = path.join(DIST, 'DiskCleanAgent.exe');
   fs.copyFileSync(process.execPath, exeOut);
-  execFileSync('npx', ['postject', exeOut, 'NODE_SEA_BLOB', path.join(DIST, 'sea-prep.blob'), '--sentinel-fuse', SENTINEL], { cwd: ROOT, stdio: 'inherit', shell: true });
+  // 直接用 node 运行 postject 的 cli 入口（免 npx/shell，避免路径解析与注入差异）
+  // postject 后 Authenticode 签名失效，客户机 SmartScreen 会提示"未知发布者"；正式分发前可用 signtool 重新签名
+  execFileSync(process.execPath, [path.join(ROOT, 'node_modules', 'postject', 'dist', 'cli.js'), exeOut, 'NODE_SEA_BLOB', path.join(DIST, 'sea-prep.blob'), '--sentinel-fuse', SENTINEL], { cwd: ROOT, stdio: 'inherit' });
   verifyFuseFlipped(exeOut);
   console.log('built: ' + exeOut);
   console.log('keygen: ' + path.join(DIST, 'keygen.html'));
+  console.log('master key fingerprint (exe/keygen): ' + masterKey.slice(0, 8));
 }
 
 main();
