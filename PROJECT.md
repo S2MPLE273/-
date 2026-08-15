@@ -16,11 +16,11 @@
 
 v0.2 新增：扫描进度条+动效（进度卡、shimmer 流光、错峰淡入、对勾描边、reduced-motion 降级）、"已选/共可清理"大小统计、管理员接口（`X-Admin-Key` 门禁：状态查看/免密钥清理/授权重置 + UI 服务方管理面板）。
 
-- 50/50 测试全绿（`npm test`）
+- 50/50 测试全绿（`npm test`）；最终整体审查通过（Ready，无 Critical/Important），审查发现的 3 项 Minor 加固已修复
 - 产物已构建：`dist/DiskCleanAgent.exe` + `dist/keygen.html`
 - 主密钥指纹 `da73f44b`，存于 `tools/master.key`（gitignored，**务必备份**——丢失后旧密钥全部作废、exe/keygen 配对断裂）
 - 尚未完成：v0.2 新功能（进度条/动效/管理面板）的真实浏览器端到端点击验收、正式外发（未做代码签名，客户机 SmartScreen 会提示未知发布者）
-- 所有提交在 main 分支，无远端仓库
+- 47 个提交全部在 main 分支，无远端仓库
 
 ## 3. 交付物与使用方法
 
@@ -114,6 +114,8 @@ DiskCleanAgent/
 
 ## 10. 里程碑提交
 
+- `e3c92c8` 终审加固（管理员密钥失效自动复位普通模式 + admin 面板字段转义）← 当前 HEAD
+- `a61fa8c` v0.2 版本号 0.2.0 + 项目记录更新
 - `b4aa41c`/`49cd050` v0.2 管理员面板 UI + 质量审查修复
 - `ca41721`/`0af66e7` 动效包 + reduced-motion 修复
 - `9f920ea`/`9a85f6c`/`667e086` 进度卡 UI + 已选统计 + 质量修复
