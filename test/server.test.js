@@ -17,7 +17,7 @@ function req(port, method, p, body, token) {
 
 function makeServer() {
   const state = { items: [{ id: 'user_temp', sizeBytes: 1 }, { id: 'win_temp', sizeBytes: 2 }], spaceDist: [] };
-  const scanner = { scanAll: async (disk, onItem) => { state.items.forEach(onItem); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
+  const scanner = { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
   const cleaner = { clean: async () => ({ results: [{ id: 'user_temp', ok: true, freed: 10 }], freedTotal: 10 }) };
   const license = { verify: (k) => k === 'GOODKEY' ? { ok: true } : { ok: false, reason: 'invalid' } };
   const psutil = { getSysInfo: async () => ({ disks: [{ name: 'C:\\', total: 100, free: 40 }], isAdmin: true, machineGuid: 'guid-1', procs: '' }) };
@@ -111,5 +111,18 @@ test('verify passes machine-bound state (machineGuid + state supplied)', async (
   assert.ok(received && received.machineGuid === 'guid-1', 'machineGuid must be passed');
   assert.ok(received && received.state && typeof received.state.save === 'function', 'file-backed state with save must be passed');
   assert.equal(typeof received.now, 'function');
+  srv.close();
+});
+
+test('scan poll includes progress', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const started = await req(port, 'POST', '/api/scan', { disk: 'C:\\' }, 'tok');
+  const poll1 = await req(port, 'GET', '/api/scan/' + started.body.data.taskId, null, 'tok');
+  const p = poll1.body.data.progress;
+  assert.ok(p, 'progress present');
+  assert.equal(p.done, 2);
+  assert.equal(p.total, 2);
+  assert.equal(p.phase, 'space');
+  assert.deepEqual(p.current, []);
   srv.close();
 });

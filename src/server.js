@@ -37,9 +37,10 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     if (req.method === 'POST' && p === '/api/scan') {
       const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
       const taskId = Math.random().toString(36).slice(2, 10);
-      const task = { id: taskId, status: 'running', disk, items: [], spaceDist: [], cursor: 0 };
+      const task = { id: taskId, status: 'running', disk, items: [], spaceDist: [], cursor: 0, progress: { phase: 'items', done: 0, total: scanner.getItems().length, current: [] } };
       tasks.set(taskId, task);
-      scanner.scanAll(disk, (item) => task.items.push(item))
+      scanner.scanAll(disk, (item) => { task.items.push(item); task.progress.done = task.items.length; },
+        (ph) => { task.progress.phase = ph.phase; task.progress.current = ph.labels || []; })
         .then(r => { task.spaceDist = r.spaceDist; task.status = 'done'; })
         .catch(e => { task.status = 'done'; task.error = e.message; });
       return json(res, 200, { ok: true, data: { taskId } });
@@ -50,7 +51,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
       if (!task) return json(res, 404, { ok: false, error: 'not found' });
       const inc = task.items.slice(task.cursor);
       task.cursor = task.items.length;
-      return json(res, 200, { ok: true, data: { status: task.status, inc, spaceDist: task.status === 'done' ? task.spaceDist : [], error: task.error } });
+      return json(res, 200, { ok: true, data: { status: task.status, inc, spaceDist: task.status === 'done' ? task.spaceDist : [], error: task.error, progress: task.progress } });
     }
     if (req.method === 'POST' && p === '/api/verify') {
       const v = verifyKey((body && body.key) || '');

@@ -71,3 +71,16 @@ test('SCAN_TOPLEVEL_PS integration: array output, correct size, junction skipped
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+test('scanAll reports phases: items batches then space then special', async () => {
+  const scanner = createScanner({ psutil: fakePsutil({}) });
+  const phases = [];
+  await scanner.scanAll('C:', () => {}, (p) => phases.push(p));
+  const kinds = phases.map(p => p.phase);
+  assert.equal(kinds[0], 'items');
+  assert.equal(phases[0].labels.length, 4, 'first batch has 4 labels');
+  assert.ok(kinds.includes('space'), 'space phase reported');
+  assert.ok(kinds.includes('special'), 'special phase reported');
+  assert.ok(kinds.indexOf('items') < kinds.indexOf('space'), 'items before space');
+  assert.ok(kinds.indexOf('space') < kinds.indexOf('special'), 'space before special');
+});

@@ -97,7 +97,7 @@ const ITEMS = [
 ];
 
 function createScanner({ psutil }) {
-  async function scanAll(disk, onItem) {
+  async function scanAll(disk, onItem, onPhase) {
     // 'C:' without a trailing backslash is the drive-relative current directory
     // (usually C:\Windows\system32), not the drive root. Normalize to 'C:\'.
     disk = /^[A-Za-z]:$/.test(disk) ? disk + '\\' : disk;
@@ -107,6 +107,7 @@ function createScanner({ psutil }) {
     const batchSize = 4;
     for (let i = 0; i < scanable.length; i += batchSize) {
       const batch = scanable.slice(i, i + batchSize);
+      if (onPhase) onPhase({ phase: 'items', labels: batch.map(b => b.label) });
       await Promise.all(batch.map(async (def) => {
         const r = await psutil.runJson('scan_entries.ps1', SCAN_ENTRIES_PS, { entries: [def] });
         let item;
@@ -120,9 +121,11 @@ function createScanner({ psutil }) {
       }));
     }
     // 空间分布（所选盘，独立）
+    if (onPhase) onPhase({ phase: 'space' });
     const rTop = await psutil.runJson('scan_toplevel.ps1', SCAN_TOPLEVEL_PS, { disk });
     const spaceDist = (rTop.ok && Array.isArray(rTop.data[0])) ? rTop.data[0] : [];
     // 特殊项：回收站 / WinSxS / driver_store 用轻量统计（预估）
+    if (onPhase) onPhase({ phase: 'special' });
     const special = await scanSpecial(psutil, disk);
     for (const s of special) { items.push(s); onItem(s); }
     return { items, spaceDist, disk };
