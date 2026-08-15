@@ -5,7 +5,7 @@
 
 ## 1. 背景与目标
 
-用户（服务方）远程协助客户电脑时，需要一个 C 盘清理工具：客户下载后输入服务方生成的密钥，自助完成扫描与清理。工具以 Web 界面呈现，最终形态为单 exe，双击即用。
+用户（服务方）远程协助客户电脑时，需要一个磁盘清理工具：客户下载后输入服务方生成的密钥，自助完成扫描与清理。工具以 Web 界面呈现，最终形态为单 exe，双击即用。支持选择任意磁盘（C/D/E…）进行扫描清理，密钥在有效期内可反复使用（含多次清理不同磁盘）。
 
 核心诉求：
 - 客户电脑无需安装任何运行环境（单 exe 内嵌一切）
@@ -17,7 +17,7 @@
 - **绿色纯净**：单文件、无广告、无弹窗、无后台常驻、无隐私上传、删除即卸载（对标 Dism++ 口碑，避开 CCleaner 捆绑门与国产管家广告痛点）
 - **数据透明**：清理前预估大小、清理后实际释放对比展示（避开「清完只少 200MB 还偷偷装插件」的信任痛点）
 - **安全分级**：清理项按风险分级标注，红色高风险项需二次确认（借鉴 Dism++ 的橙/红警告标注与 TreeSize 的关键路径删除保护）
-- **定位清晰**：不是「全能优化大师」，只做「C 盘空间回收」一件事（避开 CCleaner 功能堆砌与误删注册表风险）
+- **定位清晰**：不是「全能优化大师」，只做「磁盘空间回收」一件事（避开 CCleaner 功能堆砌与误删注册表风险）
 
 ## 2. 总体架构
 
@@ -45,11 +45,11 @@
 
 1. 双击 exe → 非管理员则 `Start-Process -Verb RunAs` 提权重启自身（一次 UAC）
 2. 以管理员启动 HTTP 服务（随机端口，URL 带随机 token，仅本机可访问）
-3. 自动打开浏览器 → 前端 `GET /api/overview` 显示 C 盘概况
-4. 客户点「开始扫描」→ `POST /api/scan` → Node 编排多个 PowerShell 子进程并行扫描 → 返回分类结果
-5. 客户输入密钥 → `POST /api/verify` → HMAC 离线验证 + 时效 + 单机绑定 → 解锁清理
-6. 客户勾选项目 → `POST /api/clean` → Node 编排 PowerShell 清理 → 返回实际释放空间
-7. 前端展示清理结果
+3. 自动打开浏览器 → 前端 `GET /api/overview` 显示全部磁盘概况（C/D/E… 卡片，可选择目标盘）
+4. 客户选择目标盘 → 点「开始扫描」→ `POST /api/scan {disk}` → Node 编排多个 PowerShell 子进程并行扫描（通用项 + 所选盘空间分布）→ 渐进式返回结果
+5. 客户输入密钥 → `POST /api/verify` → HMAC 离线验证 + 时效 + 单机绑定 → 解锁清理（有效期内反复使用，前端缓存验证状态）
+6. 客户勾选项目 → `POST /api/clean {key, items}` → Node 编排 PowerShell 清理 → 返回实际释放空间
+7. 前端展示清理结果；客户可切换磁盘重复扫描/清理（密钥有效期内无需重新输入）
 
 ## 3. 技术选型
 
@@ -94,6 +94,8 @@ payload 结构：
 5. 时间回拨防护：状态文件记录 `lastSeen`（最后成功验证的时间）；若当前时间早于 lastSeen → 拒绝（防改系统时间绕过有效期）
 6. 状态文件位置：`%ProgramData%\DiskCleanAgent\license.dat`（JSON，存密钥哈希、MachineGuid、lastSeen）
 
+**使用语义**：密钥在有效期内（默认自签发起 24 小时）可**反复使用**——可多次扫描、多次清理、切换不同磁盘重复操作，均无需重新输入密钥（前端缓存已验证状态）。有效期过后再次清理时才要求新密钥。
+
 ### 4.4 密钥生成器（keygen.html）
 
 - 纯 HTML 单文件 + 纯 JS HMAC-SHA256 实现（不用 Web Crypto，兼容 file://）
@@ -107,8 +109,9 @@ payload 结构：
 - Node 编排，按目录并行启动 PowerShell 子进程（`-NoProfile -File`，脚本通过 stdin 传入或临时文件，输出 JSON 行）
 - 每个扫描项独立子进程，失败隔离：单项失败返回 `{error}`，前端标记「扫描失败」，不影响整体
 - **渐进式结果**：各扫描项完成后立即推送给前端（SSE 或轮询增量），前端边扫边出结果，先完成的项目先显示（改善长扫描等待体验；WizTree 的秒级扫描依赖 MFT 直读，PowerShell 无法实现，渐进式展示是可行折中）
-- **空间分布扫描**：与清理项并行，统计 C 盘顶层大目录排行（Top 10），用于结果页「空间分布」区块，帮助客户直观看到空间去向（借鉴 WizTree 大文件定位能力，2026-08-15 会话已验证此扫描可行）
-- 扫描结果统一 JSON：`{id, label, path, sizeBytes, category, risk, recommended}`
+- **空间分布扫描**：与清理项并行，统计**所选盘**顶层大目录排行（Top 10），用于结果页「空间分布」区块，帮助客户直观看到空间去向（借鉴 WizTree 大文件定位能力，2026-08-15 会话已验证此扫描可行）
+- **扫描项 scope**：清理项分三类——`system`（系统盘专属，仅 C 盘/系统盘存在：win_temp、winsxs、driver_store、hibernation、prefetch、wu_cache）、`user`（用户目录，与所选盘无关，一次扫完全局生效）、`disk`（所选盘相关：空间分布分析、所选盘回收站清空）
+- 扫描结果统一 JSON：`{id, label, path, sizeBytes, scope, risk, recommended}`
 
 ### 5.2 清理项目清单
 
@@ -118,33 +121,33 @@ payload 结构：
 - `high`（红）：默认不勾选，勾选后清理前弹二次确认框
 
 默认勾选（low）：
-| id | 项目 | 路径/实现 |
-|---|---|---|
-| user_temp | 用户临时文件 | `%TEMP%`（跳过占用文件） |
-| win_temp | 系统临时文件 | `C:\Windows\Temp` |
-| recycle_bin | 回收站 | Shell COM 清空 |
-| thumb_cache | 缩略图缓存 | `%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache_*.db` |
-| crash_dumps | 崩溃转储 | `%LOCALAPPDATA%\CrashDumps`、`C:\Windows\Minidump` |
-| wu_cache | Windows 更新缓存 | `C:\Windows\SoftwareDistribution\Download` |
-| inet_cache | 网络缓存 | `%LOCALAPPDATA%\Microsoft\Windows\INetCache` |
-| pip_npm_cache | 包管理器缓存 | pip cache、npm-cache |
-| d3d_cache | D3D 着色器缓存 | `%LOCALAPPDATA%\D3DSCache` |
+| id | 项目 | scope | 路径/实现 |
+|---|---|---|---|
+| user_temp | 用户临时文件 | user | `%TEMP%`（跳过占用文件） |
+| win_temp | 系统临时文件 | system | `%SystemDrive%\Windows\Temp` |
+| recycle_bin | 回收站（所选盘） | disk | Shell COM 清空（全局清空时清所有盘） |
+| thumb_cache | 缩略图缓存 | user | `%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache_*.db` |
+| crash_dumps | 崩溃转储 | user | `%LOCALAPPDATA%\CrashDumps`、`C:\Windows\Minidump` |
+| wu_cache | Windows 更新缓存 | system | `%SystemDrive%\Windows\SoftwareDistribution\Download` |
+| inet_cache | 网络缓存 | user | `%LOCALAPPDATA%\Microsoft\Windows\INetCache` |
+| pip_npm_cache | 包管理器缓存 | user | pip cache、npm-cache |
+| d3d_cache | D3D 着色器缓存 | user | `%LOCALAPPDATA%\D3DSCache` |
 
 默认不勾选（medium）：
-| id | 项目 | 说明文案 |
-|---|---|---|
-| nvidia_shader | NVIDIA 着色器缓存（DXCache/GLCache） | 游戏首次启动会重新编译，稍慢几分钟 |
-| nvidia_driver | NVIDIA 驱动更新缓存（UpdateFramework/Downloader） | 不影响已装驱动，下次更新需重新下载 |
-| edge_cache | Edge 浏览器缓存 | 不影响书签/密码/历史 |
-| chrome_cache | Chrome 浏览器缓存（如存在） | 同上 |
-| prefetch | 预读取文件 | 系统会自动重建 |
+| id | 项目 | scope | 说明文案 |
+|---|---|---|---|
+| nvidia_shader | NVIDIA 着色器缓存（DXCache/GLCache） | user | 游戏首次启动会重新编译，稍慢几分钟 |
+| nvidia_driver | NVIDIA 驱动更新缓存（UpdateFramework/Downloader） | system | 不影响已装驱动，下次更新需重新下载 |
+| edge_cache | Edge 浏览器缓存 | user | 不影响书签/密码/历史 |
+| chrome_cache | Chrome 浏览器缓存（如存在） | user | 同上 |
+| prefetch | 预读取文件 | system | 系统会自动重建 |
 
 默认不勾选（high，红色警告 + 二次确认）：
-| id | 项目 | 说明文案 |
-|---|---|---|
-| winsxs | WinSxS 组件清理（DISM） | 耗时较长（几分钟到十几分钟），清理期间请勿断电 |
-| hibernation | 休眠文件（如存在） | 关闭休眠功能，释放约内存大小的空间 |
-| driver_store | 过期驱动包（DriverStore） | 清理已淘汰的旧版驱动，保留当前在用版本 |
+| id | 项目 | scope | 说明文案 |
+|---|---|---|---|
+| winsxs | WinSxS 组件清理（DISM） | system | 耗时较长（几分钟到十几分钟），清理期间请勿断电 |
+| hibernation | 休眠文件（如存在） | system | 关闭休眠功能，释放约内存大小的空间 |
+| driver_store | 过期驱动包（DriverStore） | system | 清理已淘汰的旧版驱动，保留当前在用版本 |
 
 ### 5.3 清理执行
 
@@ -159,11 +162,11 @@ payload 结构：
 | 路由 | 方法 | 说明 |
 |---|---|---|
 | `/` | GET | 前端页面（内嵌 HTML） |
-| `/api/overview` | GET | C 盘总量/已用/剩余 + 是否管理员 |
-| `/api/scan` | POST | 启动扫描（返回任务 id） |
+| `/api/overview` | GET | 全部磁盘（C/D/E…）总量/已用/剩余 + 是否管理员 + 系统盘标识 |
+| `/api/scan` | POST | `{disk}` 启动扫描（返回任务 id） |
 | `/api/scan/:id` | GET | 轮询扫描进度与结果（增量：仅返回新增完成项） |
 | `/api/verify` | POST | `{key}` → 验证结果 + 剩余有效时长 |
-| `/api/clean` | POST | `{key, items: [id...]}` → 再次验证密钥后执行清理，返回释放空间 |
+| `/api/clean` | POST | `{key, disk, items: [id...]}` → 再次验证密钥后执行清理，返回释放空间 |
 | `/api/progress/:id` | GET | 清理进度 |
 
 安全：所有路由校验 URL token（启动时生成，浏览器地址栏携带）；仅绑定 127.0.0.1；JSON 响应统一 `{ok, data|error}`。
@@ -171,10 +174,10 @@ payload 结构：
 ## 7. 前端页面（简洁现代风格）
 
 四个视图：
-1. **首页**：顶部 C 盘概况（剩余/总量进度条）、大按钮「开始扫描」、底部小字品牌信息
+1. **首页**：全部磁盘卡片（C/D/E… 总量/已用/剩余进度条，红黄色提示空间紧张），点击选择目标盘（默认 C）；底部大按钮「开始扫描」；底部小字品牌信息
 2. **扫描中**：各项目渐进式出现（先完成的先显示，带动画反馈）；顶部累计可清理量实时跳动；可提前看到部分结果
-3. **扫描结果**：总可清理量大字展示；**「空间分布」区块**（C 盘 Top 大目录横向条形图，帮客户看懂空间去向）；分类列表按风险分级着色（绿默认勾选 / 橙带说明 / 红警告），红色项勾选时弹二次确认；密钥输入框 + 「验证密钥」；验证成功后「开始清理」按钮可用
-4. **清理完成**：释放空间大字（清理前预估 vs 实际释放对比）+ 各项目明细（成功项绿标、失败项红标 + 诊断建议卡片 + 「重试此项目」按钮）；过期/无效密钥提示文案
+3. **扫描结果**：总可清理量大字展示；**「空间分布」区块**（所选盘 Top 大目录横向条形图，帮客户看懂空间去向）；分类列表按风险分级着色（绿默认勾选 / 橙带说明 / 红警告），红色项勾选时弹二次确认；密钥输入框 + 「验证密钥」；验证成功后「开始清理」按钮可用
+4. **清理完成**：释放空间大字（清理前预估 vs 实际释放对比）+ 各项目明细（成功项绿标、失败项红标 + 诊断建议卡片 + 「重试此项目」按钮）；过期/无效密钥提示文案；「切换磁盘」按钮返回首页换盘操作（有效期内无需重新输入密钥）
 
 视觉规范：白底、`#0067c0` 主色、圆角卡片、系统字体栈（Segoe UI）、无动画依赖。
 
@@ -230,11 +233,12 @@ main.js 启动
 
 清理逻辑只作用于清单内白名单路径，且强制排除以下关键路径（即使被误配置也拒绝执行）：
 
-- `C:\Windows\System32`、`C:\Windows\SysWOW64`、`C:\Windows\WinSxS`（DISM 项目除外，且该路径仅经 DISM 官方接口操作）
-- `C:\Windows\Installer`（卸载信息，手工删除会破坏已装软件的卸载/修复）
-- `C:\Windows\servicing`、`C:\Windows\Boot`、`C:\Windows\INF`
-- `C:\Program Files` 与 `C:\Program Files (x86)` 本体（仅允许清理清单内明确列出的子缓存路径）
+- `%SystemDrive%\Windows\System32`、`%SystemDrive%\Windows\SysWOW64`、`%SystemDrive%\Windows\WinSxS`（DISM 项目除外，且该路径仅经 DISM 官方接口操作）
+- `%SystemDrive%\Windows\Installer`（卸载信息，手工删除会破坏已装软件的卸载/修复）
+- `%SystemDrive%\Windows\servicing`、`%SystemDrive%\Windows\Boot`、`%SystemDrive%\Windows\INF`
+- `%SystemDrive%\Program Files` 与 `%SystemDrive%\Program Files (x86)` 本体（仅允许清理清单内明确列出的子缓存路径）
 - `%USERPROFILE%` 非缓存类目录（Documents/Desktop/Pictures 等一律不触碰）
+- 非系统盘（D/E…）仅允许两类操作：清空该盘回收站、只读空间分布分析。**任何非系统盘的目录删除都不在白名单内，首版一律不做**（游戏盘、资料盘风险高，避免误删客户数据）
 
 ### 9.3 与核心流程的关系
 
@@ -285,5 +289,5 @@ DiskCleanAgent/
 - 不做多语言（仅中文界面）
 - 不做自动更新
 - 不做卸载/安装器（绿色单文件，删除即卸载）
-- 不做除 C 盘外的多盘支持（首版）
 - 不做客户数据回传（纯本地运行）
+- 不做注册表清理、不做启动项管理（风险高且非空间回收核心）

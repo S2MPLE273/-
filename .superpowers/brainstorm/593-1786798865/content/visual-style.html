@@ -1,0 +1,64 @@
+<h2>界面风格：你希望客户看到什么样的界面？</h2>
+<p class="subtitle">面向普通客户的清理工具首页（扫描结果页）风格对比，点击选择你喜欢的</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f5f7fa;font-family:sans-serif">
+      <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06)">
+        <div style="font-size:13px;color:#666;margin-bottom:10px">💻 C盘清理助手</div>
+        <div style="font-size:30px;font-weight:700;color:#0067c0">可清理 <span style="color:#333">23.4 GB</span></div>
+        <div style="height:8px;background:#e8f1fa;border-radius:4px;margin:10px 0"><div style="width:68%;height:8px;background:#0067c0;border-radius:4px"></div></div>
+        <div style="display:flex;gap:8px;margin:12px 0">
+          <div style="flex:1;background:#f7f9fc;border:1px solid #e3e8ef;border-radius:8px;padding:8px;font-size:10px;color:#555">✔ 临时文件<br><b>1.2 GB</b></div>
+          <div style="flex:1;background:#f7f9fc;border:1px solid #e3e8ef;border-radius:8px;padding:8px;font-size:10px;color:#555">✔ 回收站<br><b>3.8 GB</b></div>
+          <div style="flex:1;background:#f7f9fc;border:1px solid #e3e8ef;border-radius:8px;padding:8px;font-size:10px;color:#555">□ 着色器缓存<br><b>18.4 GB</b></div>
+        </div>
+        <div style="background:#0067c0;color:#fff;border-radius:8px;padding:10px;text-align:center;font-size:12px;font-weight:600">一键清理</div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px;text-align:center">A · 简洁现代（Windows 风格）</div>
+    </div>
+    <div class="card-body">
+      <h3>A · 简洁现代</h3>
+      <p>白色/浅色底、圆角卡片、Windows 蓝主色。专业工具感，客户信任度高</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0d1117;font-family:sans-serif">
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px">
+        <div style="font-size:13px;color:#8b949e;margin-bottom:10px">◈ DiskClean</div>
+        <div style="font-size:34px;font-weight:800;color:#00d4aa">23.4<span style="font-size:18px;color:#8b949e"> GB</span></div>
+        <div style="font-size:12px;color:#8b949e">可释放空间 · 已扫描 142 GB</div>
+        <div style="height:6px;background:#21262d;border-radius:3px;margin:12px 0"><div style="width:68%;height:6px;background:linear-gradient(90deg,#00d4aa,#00a3ff);border-radius:3px"></div></div>
+        <div style="font-size:11px;color:#c9d1d9;background:#21262d;border-radius:6px;padding:8px;margin:10px 0">▸ 临时文件 1.2 GB<br>▸ 回收站 3.8 GB<br>▸ 着色器缓存 18.4 GB</div>
+        <div style="background:linear-gradient(90deg,#00d4aa,#00a3ff);color:#0d1117;border-radius:8px;padding:10px;text-align:center;font-size:12px;font-weight:700">开始清理</div>
+      </div>
+      <div style="font-size:11px;color:#666;margin-top:6px;text-align:center">B · 技术极客（深色数据风）</div>
+    </div>
+    <div class="card-body">
+      <h3>B · 技术极客</h3>
+      <p>深色底、大数字、渐变霓虹色。数据可视感强，适合年轻/懂电脑的客户</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#fff8f0;font-family:sans-serif">
+      <div style="background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(255,150,50,.15)">
+        <div style="font-size:13px;color:#a06830;margin-bottom:8px">🧹 电脑瘦身小助手</div>
+        <div style="font-size:26px;font-weight:800;color:#333">帮您找到 <span style="color:#ff7a00">23.4 GB</span> 垃圾</div>
+        <div style="font-size:12px;color:#999;margin:4px 0 12px">清理后电脑会更快哦～</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="flex:1;background:#fff3e6;border-radius:12px;padding:10px;text-align:center"><div style="font-size:20px">🗑️</div><div style="font-size:10px;color:#555">回收站<br><b>3.8 GB</b></div></div>
+          <div style="flex:1;background:#fff3e6;border-radius:12px;padding:10px;text-align:center"><div style="font-size:20px">📄</div><div style="font-size:10px;color:#555">临时文件<br><b>1.2 GB</b></div></div>
+          <div style="flex:1;background:#fff3e6;border-radius:12px;padding:10px;text-align:center"><div style="font-size:20px">🧊</div><div style="font-size:10px;color:#555">缓存<br><b>18.4 GB</b></div></div>
+        </div>
+        <div style="background:#ff7a00;color:#fff;border-radius:999px;padding:12px;text-align:center;font-size:13px;font-weight:700;box-shadow:0 4px 10px rgba(255,122,0,.4)">开始清理 ✨</div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px;text-align:center">C · 亲切友好（暖色图标风）</div>
+    </div>
+    <div class="card-body">
+      <h3>C · 亲切友好</h3>
+      <p>暖色调、大图标、亲和文案。降低客户使用门槛，适合完全不懂电脑的人</p>
+    </div>
+  </div>
+</div>
