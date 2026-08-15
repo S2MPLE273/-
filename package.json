@@ -4,7 +4,7 @@
   "private": true,
   "description": "Green single-exe disk cleaner with offline license key",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "build": "node tools/build.js"
   },
   "devDependencies": {
