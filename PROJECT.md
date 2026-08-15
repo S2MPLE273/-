@@ -12,13 +12,15 @@
 
 ## 2. 当前阶段
 
-**v0.1 开发完成，待用户实测验收（2026-08-16）。**
+**v0.2 开发完成，待用户实测验收（2026-08-16）。**
 
-- 43/43 测试全绿（`npm test`）
-- 产物已构建：`dist/DiskCleanAgent.exe`（91 MB）+ `dist/keygen.html`
+v0.2 新增：扫描进度条+动效（进度卡、shimmer 流光、错峰淡入、对勾描边、reduced-motion 降级）、"已选/共可清理"大小统计、管理员接口（`X-Admin-Key` 门禁：状态查看/免密钥清理/授权重置 + UI 服务方管理面板）。
+
+- 50/50 测试全绿（`npm test`）
+- 产物已构建：`dist/DiskCleanAgent.exe` + `dist/keygen.html`
 - 主密钥指纹 `da73f44b`，存于 `tools/master.key`（gitignored，**务必备份**——丢失后旧密钥全部作废、exe/keygen 配对断裂）
-- 尚未完成：真实浏览器端到端点击验收、正式外发（未做代码签名，客户机 SmartScreen 会提示未知发布者）
-- 25+ 提交全部在 main 分支，无远端仓库
+- 尚未完成：v0.2 新功能（进度条/动效/管理面板）的真实浏览器端到端点击验收、正式外发（未做代码签名，客户机 SmartScreen 会提示未知发布者）
+- 所有提交在 main 分支，无远端仓库
 
 ## 3. 交付物与使用方法
 
@@ -35,6 +37,8 @@
 - **本地 HTTP 服务**（127.0.0.1 随机端口 + 96-bit 随机 token 于 URL 查询参数）→ 浏览器 Web UI（原生 HTML/CSS/JS，构建时内嵌进 bundle）
 - **PowerShell 子进程**执行全部系统操作（扫描/清理/诊断），参数 Base64 JSON 传递
 - **密钥**：HMAC-SHA256 离线验证 + 单机绑定（MachineGuid）+ 时间回拨防护，状态存 `%ProgramData%\DiskCleanAgent\license.dat`
+- **扫描进度**：scanAll 的 onPhase 回调（items 批次/空间分布/特殊项三阶段）→ task.progress → GET /api/scan/:id 增量返回；UI 进度卡（确定条 + space 阶段 shimmer 流光）
+- **管理员接口**：`X-Admin-Key` 头（64 hex 主密钥，timingSafeEqual）→ `/api/admin/status|clean|license/reset`（状态查看/免密钥清理/授权重置）；UI 页脚"服务方入口"管理面板（主密钥仅存 sessionStorage）
 - **失败诊断**：错误分类 + 安全软件进程检测（火绒/360/管家/毒霸/Defender）→ 针对性建议卡片 + 单项目重试
 
 ## 5. 文件结构
@@ -91,25 +95,31 @@ DiskCleanAgent/
 - 回收站为全局清空（Shell COM 限制，文案已注明"所有磁盘"）
 - 释放差值按所选盘统计（跨盘项如用户 Temp 在 C 盘而选 D 盘时差值计 0）
 - exe 未做代码签名（SmartScreen 未知发布者）；主密钥在 exe 内可被逆向（离线方案固有风险）
+- 管理员接口权限等价于持有主密钥：能逆向提取 exe 内主密钥者获得同等管理权限（与 keygen.html 同级，离线方案固有风险）；客户正常流程不受影响（无 admin 头一律 401）
 - Edge/Chrome 缓存只扫 `User Data\Default` 单一 profile
 - 浏览器 UI 未做自动化测试（API 层已集成验证；真实点击流程待人工验收）
 
 ## 9. 后续优化方向（按优先级）
 
-1. **人工验收**：双击 exe + keygen 走完整流程（最高优先）
+1. **人工验收**：双击 exe + keygen 走完整流程，重点验收 v0.2 新功能（进度条/动效/已选统计/管理面板）（最高优先）
 2. 可选：`signtool` 代码签名解决 SmartScreen 提示
-3. 清理进度条（x/y 逐项展示，spec §6 的 /api/progress 未实现，当前为同步 POST + 文案）
-4. 完成页"预估 vs 实际释放"对比展示（spec §7，当前只显示实际值）
-5. "切换磁盘无需重新输密钥"（当前重扫会清 key，spec §7 未完全实现）
-6. 清理结果显示中文标签（当前显示原始 id 如 user_temp）
-7. driver_store 过期驱动清理（pnputil，风险高需谨慎设计）
-8. 非系统盘常见游戏缓存白名单扩展
-9. 诊断建议多安全软件全量展示（数据已支持，UI 只展示第一条）
-10. 完成页 retry 按钮对 `retryable:false` 的尊重（当前所有失败项都显示重试）
+3. 完成页"预估 vs 实际释放"对比展示（spec §7，当前只显示实际值）
+4. "切换磁盘无需重新输密钥"（当前重扫会清 key，spec §7 未完全实现）
+5. 清理结果显示中文标签（当前显示原始 id 如 user_temp）
+6. driver_store 过期驱动清理（pnputil，风险高需谨慎设计）
+7. 非系统盘常见游戏缓存白名单扩展
+8. 诊断建议多安全软件全量展示（数据已支持，UI 只展示第一条）
+9. 完成页 retry 按钮对 `retryable:false` 的尊重（当前所有失败项都显示重试）
+10. 清理过程逐项进度展示（当前 /api/clean 同步无进度反馈，扫描已解决）
 
 ## 10. 里程碑提交
 
-- `1d5a921` 最终审查修复（密钥日粒度、单盘阵列化、心跳 in-flight、JSON 转义）← 当前 HEAD
+- `b4aa41c`/`49cd050` v0.2 管理员面板 UI + 质量审查修复
+- `ca41721`/`0af66e7` 动效包 + reduced-motion 修复
+- `9f920ea`/`9a85f6c`/`667e086` 进度卡 UI + 已选统计 + 质量修复
+- `d85822d` 管理员接口（X-Admin-Key 三端点）
+- `3821097`/`44cda6c` 扫描进度（onPhase + progress 字段）
+- `1d5a921` 最终审查修复（密钥日粒度、单盘阵列化、心跳 in-flight、JSON 转义）← v0.1 HEAD
 - `ef2af49`/`83e22e7` SEA 打包流水线 + 加固
 - `2332e92`/`ee4482d` keygen 生成器 + 交叉验证
 - `5e01335` 扫描编排（含 PS junction/排序两大平台 bug 修复）

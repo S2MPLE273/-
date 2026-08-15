@@ -163,13 +163,13 @@ function req(port, method, p, body, token, headers) {
 }
 ```
 
-`makeServer()` 改为（增加 opts 与 admin 依赖注入）：
+`makeServer()` 改为（增加 opts 与 admin 依赖注入；**保留 opts.scanner 覆盖**——Task 1 的"扫描中 current 标签"测试依赖它，勿删）：
 
 ```js
 function makeServer(opts) {
   opts = opts || {};
   const state = { items: [{ id: 'user_temp', sizeBytes: 1 }, { id: 'win_temp', sizeBytes: 2 }], spaceDist: [] };
-  const scanner = { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
+  const scanner = opts.scanner || { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
   const cleaner = { clean: async () => ({ results: [{ id: 'user_temp', ok: true, freed: 10 }], freedTotal: 10 }) };
   const license = { verify: (k) => k === 'GOODKEY' ? { ok: true } : { ok: false, reason: 'invalid' } };
   const psutil = { getSysInfo: async () => ({ disks: [{ name: 'C:\\', total: 100, free: 40 }], isAdmin: true, machineGuid: 'guid-1', procs: '' }) };
