@@ -51,7 +51,9 @@ Get-ChildItem -LiteralPath $data.disk -Force -Directory -ErrorAction SilentlyCon
     $list += [pscustomobject]@{ path = $_.FullName; size = $sum }
   }
 $top = $list | Sort-Object size -Descending | Select-Object -First 10
-Write-Output ($top | ConvertTo-Json -Compress)
+# -InputObject @($top): piping $top unrolls single-element collections to a
+# scalar, which ConvertTo-Json then emits as {...} instead of [{...}].
+Write-Output (ConvertTo-Json -InputObject @($top) -Compress)
 `;
 
 const SCAN_SPECIAL_PS = `
@@ -96,6 +98,9 @@ const ITEMS = [
 
 function createScanner({ psutil }) {
   async function scanAll(disk, onItem) {
+    // 'C:' without a trailing backslash is the drive-relative current directory
+    // (usually C:\Windows\system32), not the drive root. Normalize to 'C:\'.
+    disk = /^[A-Za-z]:$/.test(disk) ? disk + '\\' : disk;
     const items = [];
     const scanable = ITEMS.filter(i => i.paths.length > 0);
     // 分批并发 4 个（避免一次性拉起 15 个 PowerShell 进程）
@@ -116,7 +121,7 @@ function createScanner({ psutil }) {
     }
     // 空间分布（所选盘，独立）
     const rTop = await psutil.runJson('scan_toplevel.ps1', SCAN_TOPLEVEL_PS, { disk });
-    const spaceDist = (rTop.ok && rTop.data[0]) || [];
+    const spaceDist = (rTop.ok && Array.isArray(rTop.data[0])) ? rTop.data[0] : [];
     // 特殊项：回收站 / WinSxS / driver_store 用轻量统计（预估）
     const special = await scanSpecial(psutil, disk);
     for (const s of special) { items.push(s); onItem(s); }
