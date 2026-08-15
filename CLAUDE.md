@@ -5,7 +5,7 @@
 ## 速览
 
 - 绿色单 exe 磁盘清理工具（Node 24 + SEA 打包 + 本地 HTTP + PowerShell 子进程 + 离线 HMAC 密钥）
-- 当前阶段：v0.2 开发完成（50/50 测试），待人工验收；v0.2 新增扫描进度条+动效、已选统计、管理员接口（X-Admin-Key 三端点 + 服务方管理面板）
+- 当前阶段：v0.2.1 修复完成（61/61 测试），待人工验收；v0.2.1 修复切盘按盘过滤/TOP10 超时/进度条确定式 0→100；v0.2 新增进度条+动效、已选统计、管理员接口（X-Admin-Key 三端点 + 服务方管理面板）
 - 测试：`npm test`；构建：`npm run build`（产物在 dist/，gitignored）
 - 开发模式：`DKC_MASTER_KEY=<64hex> node src/main.js`
 - 工作流：TDD → spec 审查 → 质量审查 → 修复循环
