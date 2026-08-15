@@ -20,7 +20,7 @@ v0.2 新增：扫描进度条+动效、已选/共统计、管理员接口。v0.2
 - 产物已构建：`dist/DiskCleanAgent.exe` + `dist/keygen.html`
 - 主密钥指纹 `da73f44b`，存于 `tools/master.key`（gitignored，**务必备份**——丢失后旧密钥全部作废、exe/keygen 配对断裂）
 - 尚未完成：v0.2.1 切盘修复的真实浏览器端到端点击验收、正式外发（未做代码签名，客户机 SmartScreen 会提示未知发布者）
-- 全部提交在 main 分支，无远端仓库
+- 全部提交在 main 分支；远端仓库：`https://github.com/S2MPLE273/-`（2026-08-16 首次推送；仓库不含任何密钥——`tools/master.key`、`dist/` 均 gitignored）
 
 ## 3. 交付物与使用方法
 
@@ -113,6 +113,7 @@ DiskCleanAgent/
 
 ## 10. 里程碑提交
 
+- `3012867` 首次推送 GitHub（清理 untracked masterkey.txt + 记录远端）
 - `a089f90` 进度条确定式 0→100（v0.2.1）
 - `501a29b` 磁盘参数盘根格式校验守卫（安全修复：非盘根路径曾可清空系统盘回收站）
 - `628775b` 回收站按盘清空（SHEmptyRecycleBin）+ 清理按盘校验（v0.2.1）
