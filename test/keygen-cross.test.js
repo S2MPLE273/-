@@ -33,6 +33,17 @@ test('keygen and license.js share the same algorithm', () => {
   assert.equal(r.ok, true);
 });
 
+test('keygen cross: validDays clamp + multibyte tag boundary', () => {
+  const lic = createLicense({ masterKey: MASTER });
+  const algo = makeApi(MASTER);
+  const key = algo.generate({ clientTag: '客户-张三-联想笔记本-2026年8月-编号0001', validDays: 100, issueTime: Date.UTC(2026, 7, 15) });
+  const r = lic.verify(key, { now: () => Date.UTC(2026, 7, 15, 12) });
+  assert.equal(r.ok, true);
+  // validDays 100 被钳位到 63：+60 天仍有效
+  const r60 = lic.verify(key, { now: () => Date.UTC(2026, 9, 14) });
+  assert.equal(r60.ok, true);
+});
+
 test('keygen with different master key is rejected', () => {
   const lic = createLicense({ masterKey: MASTER });
   const algo = makeApi('c'.repeat(64));

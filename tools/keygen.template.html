@@ -40,7 +40,9 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
 </div>
 
 <script id="dkc-algo">
-// ==== 与 src/license.js 一致的算法实现（纯 JS，无外部依赖） ====
+// ==== 与 src/license.js 一致的算法实现（纯 JS，无外部依赖）====
+// 警告：修改本段算法后必须运行 node --test test/keygen-cross.test.js 交叉验证，
+// 否则可能生成客户无法使用的密钥（密钥格式与 license.js 位级一致是硬约束）。
 (function () {
   function hmacSha256(keyHex, msgBytes) {
     var key = new Uint8Array(keyHex.length / 2);
