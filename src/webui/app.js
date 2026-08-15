@@ -3,6 +3,12 @@
   const TOKEN = new URLSearchParams(location.search).get('token') || '';
   let state = { disk: null, items: [], verified: false, key: null, cleaning: false, scanDone: false };
   let pollTimer = null;
+  const LICENSE_MSGS = {
+    invalid: '密钥无效，请核对输入',
+    expired: '密钥已过期，请联系服务人员获取新密钥',
+    machine_mismatch: '此密钥已在其他电脑上使用',
+    clock_rollback: '系统时间异常，请校正时间',
+  };
 
   function fmt(n) {
     if (!n) return '0 B';
@@ -12,10 +18,14 @@
     return v.toFixed(v >= 100 ? 0 : 1) + ' ' + u[i];
   }
   async function api(method, path, body) {
-    const r = await fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + TOKEN, {
-      method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
-    });
-    return r.json();
+    try {
+      const r = await fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + TOKEN, {
+        method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
+      });
+      return r.json();
+    } catch (e) {
+      return { ok: false, error: 'network' };
+    }
   }
   function show(view) { ['home', 'scan', 'done'].forEach(v => { $('view-' + v).hidden = v !== view; }); }
 
@@ -43,10 +53,11 @@
     $('btn-clean').disabled = true; $('btn-clean').textContent = '开始清理';
     $('space-dist').hidden = true; $('dist-bars').innerHTML = '';
     $('license-box').hidden = true;
+    $('key-input').value = ''; $('clean-progress').textContent = '';
     show('scan'); $('scan-title').textContent = '正在扫描 ' + state.disk + ' …';
     $('scan-sub').textContent = '可清理空间（实时累计）';
     const r = await api('POST', '/api/scan', { disk: state.disk });
-    if (!r.ok) return;
+    if (!r.ok) { $('scan-sub').textContent = '启动扫描失败'; return; }
     pollTimer = setInterval(() => poll(r.data.taskId), 1200);
   };
 
@@ -61,6 +72,7 @@
     const pick = row.querySelector('.pick');
     if (pick) pick.addEventListener('change', (e) => {
       if (e.target.dataset.risk === 'high' && e.target.checked && !confirm('此项目风险较高（' + row.querySelector('.iname').textContent + '），确认清理？')) e.target.checked = false;
+      updateCleanButton();
     });
   }
 
@@ -81,7 +93,12 @@
 
   async function poll(id) {
     const r = await api('GET', '/api/scan/' + id);
-    if (!r.ok) return;
+    if (!r.ok) {
+      clearInterval(pollTimer);
+      $('scan-title').textContent = '扫描失败';
+      $('scan-sub').textContent = (r.error || '网络错误');
+      return;
+    }
     (r.data.inc || []).forEach(it => {
       state.items.push(it);
       renderItem(it);
@@ -89,6 +106,11 @@
     });
     if (r.data.status === 'done') {
       clearInterval(pollTimer);
+      if (r.data.error) {
+        $('scan-title').textContent = '扫描失败';
+        $('scan-sub').textContent = '扫描失败：' + r.data.error;
+        return;
+      }
       state.scanDone = true;
       $('scan-title').textContent = '扫描完成 · ' + state.disk;
       $('scan-sub').textContent = '勾选要清理的项目，验证密钥后开始清理';
@@ -109,26 +131,36 @@
       updateCleanButton();
     } else {
       state.verified = false;
-      const msg = { invalid: '密钥无效，请核对输入', expired: '密钥已过期，请联系服务人员获取新密钥', machine_mismatch: '此密钥已在其他电脑上使用', clock_rollback: '系统时间异常，请校正时间' }[(r.data && r.data.reason)] || '密钥无效';
-      el.textContent = msg;
+      el.textContent = LICENSE_MSGS[r.data && r.data.reason] || '密钥无效';
       el.className = 'sub bad';
     }
   };
 
   $('btn-clean').onclick = async () => {
-    if (!state.verified || state.cleaning) return;
+    if (state.cleaning) return;
+    if (!state.verified) { $('clean-progress').textContent = '请先验证密钥'; return; }
     state.cleaning = true;
     $('btn-clean').disabled = true;
     $('clean-progress').textContent = '正在清理…';
     const ids = Array.from(document.querySelectorAll('.pick:checked')).map(cb => cb.dataset.id);
-    const r = await api('POST', '/api/clean', { key: state.key, disk: state.disk, items: ids });
+    let r;
+    try {
+      r = await api('POST', '/api/clean', { key: state.key, disk: state.disk, items: ids });
+    } catch (e) {
+      state.cleaning = false;
+      $('clean-progress').textContent = '清理失败：网络错误';
+      updateCleanButton();
+      return;
+    }
     state.cleaning = false;
     if (!r.ok) {
-      $('clean-progress').textContent = r.error === 'license_expired' ? '密钥已过期，请联系服务人员获取新密钥' : '清理失败：' + (r.error || '未知错误');
+      $('clean-progress').textContent = LICENSE_MSGS[r.error && r.error.replace('license_', '')] || '清理失败：' + (r.error || '未知错误');
+      updateCleanButton();
       return;
     }
     show('done');
-    $('done-freed').textContent = fmt(r.data.freedTotal);
+    let doneFreed = r.data.freedTotal;
+    $('done-freed').textContent = fmt(doneFreed);
     const list = $('done-list');
     list.innerHTML = '';
     (r.data.results || []).forEach(res => {
@@ -141,6 +173,8 @@
       b.onclick = async () => {
         const r2 = await api('POST', '/api/clean', { key: state.key, disk: state.disk, items: [b.dataset.id] });
         if (r2.ok && r2.data.results[0] && r2.data.results[0].ok) {
+          doneFreed += r2.data.results[0].freed || 0;
+          $('done-freed').textContent = fmt(doneFreed);
           b.closest('.item').outerHTML = '<div class="item"><div style="flex:1"><div class="iname">✓ ' + b.dataset.id + ' 重试成功</div></div><div class="isize">' + fmt(r2.data.results[0].freed) + '</div></div>';
         } else {
           b.closest('.item').querySelector('.iname').textContent = '✗ ' + b.dataset.id + ' 仍失败';
