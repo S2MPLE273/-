@@ -50,6 +50,9 @@
     el.textContent = '';
     el.className = 'sub';
   }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  }
 
   async function loadOverview() {
     const r = await api('GET', '/api/overview');
@@ -237,6 +240,14 @@
     }
     state.cleaning = false;
     if (!r.ok) {
+      if (adminKey && r.error === 'unauthorized') {
+        adminKey = '';
+        try { sessionStorage.removeItem('dkcAdminKey'); } catch (e) {}
+        applyNormalMode();
+        $('clean-progress').textContent = '管理员密钥已失效，请重新登录或改用服务密钥';
+        updateCleanButton();
+        return;
+      }
       $('clean-progress').textContent = LICENSE_MSGS[r.error && r.error.replace('license_', '')] || '清理失败：' + (r.error || '未知错误');
       updateCleanButton();
       return;
@@ -309,12 +320,12 @@
     }
     const d = r.data;
     const entries = Object.entries(d.license.entries || {});
-    let rows = entries.map(([h, e]) => '<tr><td>' + h + '</td><td>' + (e.machineGuid || '') + '</td><td>' + new Date(e.lastSeen || 0).toLocaleString() + '</td></tr>').join('');
+    let rows = entries.map(([h, e]) => '<tr><td>' + esc(h) + '</td><td>' + esc(e.machineGuid || '') + '</td><td>' + esc(new Date(e.lastSeen || 0).toLocaleString()) + '</td></tr>').join('');
     if (!rows) rows = '<tr><td colspan="3" style="color:#889">无授权记录</td></tr>';
     $('admin-status').innerHTML =
-      '<table><tr><td>版本</td><td>v' + d.version + '</td></tr>' +
-      '<tr><td>主密钥指纹</td><td>' + d.fingerprint + '</td></tr>' +
-      '<tr><td>机器标识</td><td>' + d.machineGuid + '</td></tr>' +
+      '<table><tr><td>版本</td><td>v' + esc(d.version) + '</td></tr>' +
+      '<tr><td>主密钥指纹</td><td>' + esc(d.fingerprint) + '</td></tr>' +
+      '<tr><td>机器标识</td><td>' + esc(d.machineGuid) + '</td></tr>' +
       '<tr><td>授权记录数</td><td>' + entries.length + '</td></tr></table>' +
       '<h3 style="margin-top:10px">授权记录</h3><table><tr><td>密钥哈希</td><td>绑定机器</td><td>最近使用</td></tr>' + rows + '</table>';
   }
