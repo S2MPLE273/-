@@ -155,6 +155,8 @@
     if (r.data.status === 'done') {
       clearInterval(pollTimer);
       if (r.data.error) {
+        $('scan-progress').hidden = true;
+        $('view-scan').setAttribute('aria-busy', 'false');
         $('scan-title').textContent = '扫描失败';
         $('scan-sub').textContent = '扫描失败：' + r.data.error;
         return;
