@@ -13,7 +13,7 @@ let isSea = false;
 try { isSea = require('node:sea').isSea(); } catch (e) {}
 
 // 构建期由 esbuild define 替换（开发期未定义时走环境变量兜底）
-const MASTER_KEY = typeof __MASTER_KEY__ !== 'undefined' ? __MASTER_KEY__ : '__MASTER_KEY__';
+const MASTER_KEY = typeof __MASTER_KEY__ !== 'undefined' ? __MASTER_KEY__ : '';
 
 function resolveMasterKey() {
   if (MASTER_KEY && MASTER_KEY.length === 64 && /^[0-9a-f]{64}$/i.test(MASTER_KEY)) return MASTER_KEY.toLowerCase();

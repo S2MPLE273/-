@@ -2,3 +2,4 @@ node_modules/
 .superpowers/
 tools/master.key
 dist/
+src/webui-inline.js
