@@ -24,6 +24,16 @@ test('clean: serial execution, aggregates freed bytes', async () => {
   assert.equal(res.results.length, 2);
 });
 
+test('clean: driver_store marked unsupported, not silent success', async () => {
+  const calls = [];
+  const cleaner = createCleaner(fake({ scriptResults: {} }));
+  cleaner._psutil.runJson = async (...a) => { calls.push(a[0]); return { ok: true, data: [] }; };
+  const res = await cleaner.clean({ disk: 'C:\\', items: ['driver_store'] }, () => {});
+  assert.equal(res.results[0].ok, false);
+  assert.match(res.results[0].error, /暂不支持/);
+  assert.equal(calls.length, 0, 'cleanOne must not be invoked for driver_store');
+});
+
 test('clean: retries once on failure, then diagnoses', async () => {
   const cleaner = createCleaner(fake({
     scriptResults: { 'clean_entries.ps1': { ok: true, data: [] } },

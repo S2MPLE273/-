@@ -31,7 +31,10 @@ foreach($e in $data.entries){
         $r = Dism.exe /Online /Cleanup-Image /StartComponentCleanup 2>&1
         if($LASTEXITCODE -ne 0){ $ok=$false; $err = ($r -join ' | ').Substring(0,[Math]::Min(500,($r -join ' | ').Length)) }
       }
-      'hiber' { powercfg /h off 2>&1 | Out-Null }
+      'hiber' {
+        $r = powercfg /h off 2>&1
+        if($LASTEXITCODE -ne 0){ $ok=$false; $err = (($r | Out-String).Trim()).Substring(0,[Math]::Min(300,(($r | Out-String).Trim()).Length)) }
+      }
     }
   } catch { $ok=$false; $err=$_.Exception.Message }
   $after = (Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -eq $data.disk } | Select-Object -First 1).Free
@@ -71,6 +74,13 @@ function createCleaner({ psutil, diagnose }) {
     for (const id of items) {
       const def = ITEMS.find(i => i.id === id);
       if (!def) continue;
+      // pnputil 驱动清理风险高，首版不做（见设计文档 5.2 high 项）
+      if (id === 'driver_store') {
+        const r = { id, ok: false, freed: 0, error: '此版本暂不支持清理过期驱动包' };
+        results.push(r);
+        onProgress(r);
+        continue;
+      }
       const spec = KINDS[id] || { kind: 'dir', paths: def.paths, filters: null };
       let r = await cleanOne(spec.kind, id, spec.paths, spec.filters, disk);
       if (!r.ok) {
