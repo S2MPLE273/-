@@ -4,6 +4,9 @@
   let state = { disk: null, items: [], verified: false, key: null, cleaning: false, scanDone: false };
   let pollTimer = null;
   let renderSeq = 0;
+  let adminKey = '';
+  try { adminKey = sessionStorage.getItem('dkcAdminKey') || ''; } catch (e) {}
+  function adminHeaders() { return adminKey ? { 'X-Admin-Key': adminKey } : {}; }
   const LICENSE_MSGS = {
     invalid: '密钥无效，请核对输入',
     expired: '密钥已过期，请联系服务人员获取新密钥',
@@ -18,10 +21,10 @@
     while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
     return v.toFixed(v >= 100 ? 0 : 1) + ' ' + u[i];
   }
-  async function api(method, path, body) {
+  async function api(method, path, body, headers) {
     try {
       const r = await fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + TOKEN, {
-        method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
+        method, headers: Object.assign(body ? { 'Content-Type': 'application/json' } : {}, headers || {}), body: body ? JSON.stringify(body) : undefined,
       });
       return r.json();
     } catch (e) {
@@ -29,6 +32,16 @@
     }
   }
   function show(view) { ['home', 'scan', 'done'].forEach(v => { $('view-' + v).hidden = v !== view; }); }
+
+  function applyAdminMode() {
+    if (!adminKey) return;
+    state.verified = true;
+    $('license-desc').textContent = '管理员模式：无需密钥，可直接清理';
+    $('key-row').hidden = true;
+    const el = $('key-status');
+    el.textContent = '管理员模式已启用 ✓';
+    el.className = 'sub ok';
+  }
 
   async function loadOverview() {
     const r = await api('GET', '/api/overview');
@@ -175,6 +188,7 @@
       $('scan-sub').textContent = '勾选要清理的项目，验证密钥后开始清理';
       renderDist(r.data.spaceDist);
       $('license-box').hidden = false;
+      applyAdminMode();
       $('scan-progress').hidden = true;
       $('view-scan').setAttribute('aria-busy', 'false');
       updateCleanButton();
@@ -206,7 +220,7 @@
     const ids = Array.from(document.querySelectorAll('.pick:checked')).map(cb => cb.dataset.id);
     let r;
     try {
-      r = await api('POST', '/api/clean', { key: state.key, disk: state.disk, items: ids });
+      r = await api('POST', adminKey ? '/api/admin/clean' : '/api/clean', { key: state.key, disk: state.disk, items: ids }, adminHeaders());
     } catch (e) {
       state.cleaning = false;
       $('clean-progress').textContent = '清理失败：网络错误';
@@ -233,7 +247,7 @@
     });
     list.querySelectorAll('.retry-btn').forEach(b => {
       b.onclick = async () => {
-        const r2 = await api('POST', '/api/clean', { key: state.key, disk: state.disk, items: [b.dataset.id] });
+        const r2 = await api('POST', adminKey ? '/api/admin/clean' : '/api/clean', { key: state.key, disk: state.disk, items: [b.dataset.id] }, adminHeaders());
         if (r2.ok && r2.data.results[0] && r2.data.results[0].ok) {
           doneFreed += r2.data.results[0].freed || 0;
           $('done-freed').textContent = fmt(doneFreed);
@@ -246,6 +260,58 @@
   };
 
   $('btn-again').onclick = () => { show('home'); loadOverview(); };
+
+  applyAdminMode();
+
+  $('admin-link').onclick = () => {
+    $('admin-modal').hidden = false;
+    if (adminKey) { $('admin-login').hidden = true; renderAdminPanel(); }
+    else { $('admin-login').hidden = false; $('admin-panel').hidden = true; $('admin-msg').textContent = ''; }
+  };
+  $('admin-close').onclick = () => { $('admin-modal').hidden = true; };
+  $('admin-login-btn').onclick = async () => {
+    const key = $('admin-key-input').value.trim();
+    if (!key) return;
+    const r = await api('GET', '/api/admin/status', null, { 'X-Admin-Key': key });
+    if (!r.ok) {
+      $('admin-msg').textContent = '主密钥错误（401）';
+      $('admin-msg').className = 'sub bad';
+      return;
+    }
+    adminKey = key;
+    try { sessionStorage.setItem('dkcAdminKey', key); } catch (e) {}
+    $('admin-login').hidden = true;
+    applyAdminMode();
+    renderAdminPanel();
+  };
+  async function renderAdminPanel() {
+    const r = await api('GET', '/api/admin/status', null, adminHeaders());
+    $('admin-panel').hidden = false;
+    if (!r.ok) {
+      adminKey = '';
+      try { sessionStorage.removeItem('dkcAdminKey'); } catch (e) {}
+      $('admin-panel').hidden = true;
+      $('admin-login').hidden = false;
+      $('admin-msg').textContent = '主密钥已失效，请重新输入';
+      $('admin-msg').className = 'sub bad';
+      return;
+    }
+    const d = r.data;
+    const entries = Object.entries(d.license.entries || {});
+    let rows = entries.map(([h, e]) => '<tr><td>' + h + '</td><td>' + (e.machineGuid || '') + '</td><td>' + new Date(e.lastSeen || 0).toLocaleString() + '</td></tr>').join('');
+    if (!rows) rows = '<tr><td colspan="3" style="color:#889">无授权记录</td></tr>';
+    $('admin-status').innerHTML =
+      '<table><tr><td>版本</td><td>v' + d.version + '</td></tr>' +
+      '<tr><td>主密钥指纹</td><td>' + d.fingerprint + '</td></tr>' +
+      '<tr><td>机器标识</td><td>' + d.machineGuid + '</td></tr>' +
+      '<tr><td>授权记录数</td><td>' + entries.length + '</td></tr></table>' +
+      '<h3 style="margin-top:10px">授权记录</h3><table><tr><td>密钥哈希</td><td>绑定机器</td><td>最近使用</td></tr>' + rows + '</table>';
+  }
+  $('admin-reset').onclick = async () => {
+    if (!confirm('确认清除本机全部授权状态？清除后客户密钥需重新验证。')) return;
+    const r = await api('POST', '/api/admin/license/reset', {}, adminHeaders());
+    if (r.ok) location.reload();
+  };
 
   loadOverview();
 })();

@@ -45,8 +45,8 @@
     <div id="item-list" class="card"></div>
     <div class="license-box card" id="license-box" hidden>
       <h3>清理授权</h3>
-      <p class="sub">输入服务密钥解锁清理（有效期内可反复使用）</p>
-      <div class="row">
+      <p class="sub" id="license-desc">输入服务密钥解锁清理（有效期内可反复使用）</p>
+      <div class="row" id="key-row">
         <input id="key-input" placeholder="DKC-XXXX-XXXX-XXXX-XXXX" autocomplete="off">
         <button id="btn-verify" class="btn-primary">验证密钥</button>
       </div>
@@ -64,6 +64,27 @@
     <button id="btn-again" class="btn-secondary">切换磁盘</button>
   </section>
 </main>
-<footer>DiskClean Agent v0.1 · 本地运行 · 数据不出本机</footer>
+<div id="admin-modal" class="modal-mask" hidden>
+  <div class="modal">
+    <h3>服务方管理面板</h3>
+    <div id="admin-login">
+      <p class="sub">输入主密钥（tools/master.key，64 位 hex）</p>
+      <div class="row">
+        <input id="admin-key-input" type="password" placeholder="主密钥" autocomplete="off">
+        <button id="admin-login-btn" class="btn-primary">进入</button>
+      </div>
+      <div id="admin-msg" class="sub"></div>
+    </div>
+    <div id="admin-panel" hidden>
+      <div class="card admin-card" id="admin-status"></div>
+      <div class="row">
+        <button id="admin-reset" class="btn-danger">重置授权状态</button>
+        <button id="admin-close" class="btn-secondary">关闭</button>
+      </div>
+      <p class="sub">管理员模式下，清理页验证框将显示"管理员模式：无需密钥"，可直接清理。</p>
+    </div>
+  </div>
+</div>
+<footer>DiskClean Agent v0.2 · 本地运行 · 数据不出本机<a id="admin-link" href="#">服务方入口</a></footer>
 </body>
 </html>

@@ -81,3 +81,19 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
   /* 描边动画禁用后对勾必须直接可见（基础样式 dashoffset:24 是全隐） */
   .ck path { stroke-dashoffset: 0 !important; }
 }
+
+/* —— v0.2 管理员面板 —— */
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.modal { background: #fff; border-radius: 14px; padding: 22px; width: 480px; max-width: 92vw; max-height: 86vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.2); animation: dkc-in .2s ease-out both; }
+.modal .row { display: flex; gap: 10px; margin-top: 12px; }
+.modal input { flex: 1; padding: 10px 12px; border: 1px solid #ccd; border-radius: 8px; font-size: 13px; }
+.btn-danger { background: #d9534f; color: #fff; border: 0; border-radius: 10px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+.admin-card { margin: 10px 0; font-size: 13px; padding: 12px; }
+.admin-card table { width: 100%; border-collapse: collapse; }
+.admin-card td { padding: 4px 8px; border-bottom: 1px solid #f0f2f5; word-break: break-all; }
+.admin-card td:first-child { color: #778; width: 110px; }
+#admin-link { color: #99a; text-decoration: none; margin-left: 10px; font-size: 12px; }
+#admin-link:hover { color: #0067c0; }
+#admin-msg.bad { color: #d9534f; }
+/* display:flex 会覆盖 UA 的 [hidden]{display:none}，模态层与密钥行需显式支持 hidden */
+.modal-mask[hidden], #key-row[hidden] { display: none; }
