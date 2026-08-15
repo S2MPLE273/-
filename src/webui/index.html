@@ -19,11 +19,24 @@
     <button id="btn-scan" class="btn-primary" disabled>开始扫描</button>
   </section>
   <!-- 视图 2: 扫描中/结果 -->
-  <section id="view-scan" hidden>
+  <section id="view-scan" hidden aria-busy="false">
     <div class="scan-head">
       <h2 id="scan-title">正在扫描…</h2>
       <div class="big-num" id="total-size">0 B</div>
       <div class="sub" id="scan-sub">可清理空间（实时累计）</div>
+      <div class="sel-line" id="sel-line" hidden>已选 <b id="sel-num">0 B</b> / 共可清理 <b id="total-num">0 B</b></div>
+    </div>
+    <div id="scan-progress" class="card" hidden>
+      <div class="prog-head">
+        <svg class="prog-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="#0067c0" stroke-width="2" opacity=".25"/><path d="M12 2 A10 10 0 0 1 22 12" fill="none" stroke="#0067c0" stroke-width="2" stroke-linecap="round"/></svg>
+        <div class="prog-text">
+          <div class="prog-current"><span id="prog-text">正在准备扫描…</span><span class="dots"><span></span><span></span><span></span></span></div>
+          <div id="prog-meta" class="sub">0 / 17 项</div>
+        </div>
+      </div>
+      <div class="prog-bar" id="prog-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="prog-fill" id="prog-fill" style="width:0%"></div>
+      </div>
     </div>
     <div id="space-dist" class="card" hidden>
       <h3>空间分布 · 所选盘大目录 Top 10</h3>

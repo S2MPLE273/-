@@ -54,6 +54,13 @@
     $('space-dist').hidden = true; $('dist-bars').innerHTML = '';
     $('license-box').hidden = true;
     $('key-input').value = ''; $('clean-progress').textContent = '';
+    $('scan-progress').hidden = false;
+    $('prog-fill').style.width = '0%';
+    $('prog-bar').classList.remove('indeterminate');
+    $('prog-text').textContent = '正在准备扫描…';
+    $('prog-meta').textContent = '0 / 17 项';
+    $('sel-line').hidden = true;
+    $('view-scan').setAttribute('aria-busy', 'true');
     show('scan'); $('scan-title').textContent = '正在扫描 ' + state.disk + ' …';
     $('scan-sub').textContent = '可清理空间（实时累计）';
     const r = await api('POST', '/api/scan', { disk: state.disk });
@@ -76,6 +83,44 @@
     });
   }
 
+  function renderProgress(p) {
+    if (!p) return;
+    const total = p.total || 17;
+    const done = p.done || 0;
+    const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0;
+    $('prog-fill').style.width = pct + '%';
+    $('prog-bar').setAttribute('aria-valuenow', String(pct));
+    $('prog-meta').textContent = done + ' / ' + total + ' 项 · ' + pct + '%';
+    const bar = $('prog-bar');
+    if (p.phase === 'space') {
+      bar.classList.add('indeterminate');
+      $('prog-text').textContent = '正在分析磁盘空间分布（约需 1–3 分钟）';
+    } else if (p.phase === 'special') {
+      bar.classList.remove('indeterminate');
+      $('prog-text').textContent = '正在统计回收站与特殊项…';
+    } else {
+      bar.classList.remove('indeterminate');
+      $('prog-text').textContent = '正在扫描：' + ((p.current && p.current.length) ? p.current.join('、') : '…');
+    }
+  }
+
+  function updateSummary() {
+    const picks = Array.from(document.querySelectorAll('.pick:checked'));
+    const sel = picks.reduce((s, cb) => {
+      const it = state.items.find(i => i.id === cb.dataset.id);
+      return s + ((it && !it.error) ? (it.sizeBytes || 0) : 0);
+    }, 0);
+    const total = state.items.reduce((s, i) => s + (i.error ? 0 : (i.sizeBytes || 0)), 0);
+    const line = $('sel-line');
+    if (state.scanDone && state.items.length) {
+      line.hidden = false;
+      $('sel-num').textContent = fmt(sel);
+      $('total-num').textContent = fmt(total);
+    } else {
+      line.hidden = true;
+    }
+  }
+
   function renderDist(spaceDist) {
     if (!spaceDist || !Array.isArray(spaceDist) || !spaceDist.length) return;
     $('space-dist').hidden = false;
@@ -84,6 +129,7 @@
   }
 
   function updateCleanButton() {
+    updateSummary();
     const picks = document.querySelectorAll('.pick:checked');
     const any = state.items.some(i => !i.error && i.sizeBytes > 0);
     $('btn-clean').textContent = '开始清理（' + picks.length + ' 项）';
@@ -95,6 +141,7 @@
     const r = await api('GET', '/api/scan/' + id);
     if (!r.ok) {
       clearInterval(pollTimer);
+      $('scan-progress').hidden = true;
       $('scan-title').textContent = '扫描失败';
       $('scan-sub').textContent = (r.error || '网络错误');
       return;
@@ -104,6 +151,7 @@
       renderItem(it);
       if (!it.error) $('total-size').textContent = fmt(state.items.reduce((s, x) => s + (x.sizeBytes || 0), 0));
     });
+    if (r.data.progress) renderProgress(r.data.progress);
     if (r.data.status === 'done') {
       clearInterval(pollTimer);
       if (r.data.error) {
@@ -116,6 +164,8 @@
       $('scan-sub').textContent = '勾选要清理的项目，验证密钥后开始清理';
       renderDist(r.data.spaceDist);
       $('license-box').hidden = false;
+      $('scan-progress').hidden = true;
+      $('view-scan').setAttribute('aria-busy', 'false');
       updateCleanButton();
     }
   }
