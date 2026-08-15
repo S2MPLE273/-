@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { createCleaner } = require('../src/cleaner');
+const psutil = require('../src/psutil');
 
 function fake({ scriptResults, diag }) {
   return {
@@ -47,4 +48,30 @@ test('clean: retries once on failure, then diagnoses', async () => {
   assert.equal(res.results[0].ok, false);
   assert.ok(res.results[0].diagnosis);
   assert.equal(res.results[0].diagnosis.errorType, 'access_denied');
+});
+
+// CLEAN_ENTRIES_PS 的错误字段现用 ConvertTo-Json 转义；真实 DISM 错误含反斜杠路径
+// 与引号（如 C:\Windows\Logs\DISM\dism.log），旧 -replace 转义会产生非法 JSON。
+test('error field: backslash+quote stays valid JSON (integration)', async () => {
+  const probe = `
+param([string]$Json)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$err = 'Access is denied. C:\\Windows\\Logs\\DISM\\dism.log "quoted"'
+Write-Output ('{"error":' + ($err | ConvertTo-Json -Compress) + '}')
+`;
+  const r = await psutil.runJson('errprobe.ps1', probe, {});
+  assert.equal(r.ok, true);
+  assert.equal(r.data[0].error, 'Access is denied. C:\\Windows\\Logs\\DISM\\dism.log "quoted"');
+});
+
+test('old -replace escape yields bad json on backslash+quote (regression pin)', async () => {
+  const probe = `
+param([string]$Json)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$err = 'Access is denied. C:\\Windows\\Logs\\DISM\\dism.log "quoted"'
+Write-Output ('{"error":"' + ($err -replace '"','\\"') + '"}')
+`;
+  const r = await psutil.runJson('errprobe-old.ps1', probe, {});
+  assert.equal(r.ok, false);
+  assert.match(r.error, /bad json output/);
 });

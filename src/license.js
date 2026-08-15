@@ -70,12 +70,13 @@ function createLicense({ masterKey }) {
     if (version !== 1) return { ok: false, reason: 'invalid' };
     const cur = now();
     const issueMs = EPOCH + issueDay * DAY_MS;
-    const expireMs = issueMs + validDays * DAY_MS;
+    // 日粒度：validDays=1 的密钥自签发时刻起，有效至 issueDay+1 当天结束（即 issueDay+2 的 0 点）
+    const expireMs = issueMs + (validDays + 1) * DAY_MS;
     const keyHash = crypto.createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 16);
     const st = state && (state.entries || (state.entries = {}));
     const rec = st && st[keyHash];
     if (cur < issueMs) return { ok: false, reason: 'clock_rollback' };
-    if (cur > expireMs) return { ok: false, reason: 'expired' };
+    if (cur >= expireMs) return { ok: false, reason: 'expired' };
     if (st) {
       if (rec && rec.machineGuid !== machineGuid) return { ok: false, reason: 'machine_mismatch' };
       if (rec && cur < rec.lastSeen) return { ok: false, reason: 'clock_rollback' };

@@ -83,8 +83,15 @@ async function main() {
   if (!srv) throw new Error('no free port found');
 
   let lastActivity = Date.now();
+  let inFlight = 0;
   srv.on('request', () => { lastActivity = Date.now(); });
-  setInterval(() => { if (Date.now() - lastActivity > 10 * 60 * 1000) process.exit(0); }, 60 * 1000);
+  srv.on('request', (req, res) => {
+    inFlight++;
+    let done = false; // 'close' 与 'finish' 可能都触发，once 守卫防止重复递减
+    res.on('close', () => { if (!done) { done = true; inFlight--; } });
+  });
+  // 清理任务（DISM 最长 30 分钟）期间无新请求但仍有在途响应，不得退出
+  setInterval(() => { if (inFlight === 0 && Date.now() - lastActivity > 10 * 60 * 1000) process.exit(0); }, 60 * 1000);
 
   openBrowser(`http://127.0.0.1:${srv.address().port}/?token=${token}`);
 }

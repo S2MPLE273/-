@@ -44,7 +44,7 @@ foreach($e in $data.entries){
   $after = (Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -eq $data.disk } | Select-Object -First 1).Free
   $freed = 0L
   if($before -and $after){ $freed = [long]($after - $before); if($freed -lt 0){ $freed = 0 } }
-  $out += ('{"id":"' + $e.id + '","ok":' + $ok.ToString().ToLower() + ',"freed":' + $freed + ',"error":"' + ($err -replace '"','\\"') + '"}')
+  $out += ('{"id":"' + $e.id + '","ok":' + $ok.ToString().ToLower() + ',"freed":' + $freed + ',"error":' + ($err | ConvertTo-Json -Compress) + '}')
 }
 Write-Output ($out -join "\`n")
 `;

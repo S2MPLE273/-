@@ -10,6 +10,11 @@ test('b64json roundtrip', () => {
   assert.deepStrictEqual(back, obj);
 });
 
+test('normalizeDisks wraps single object into array', () => {
+  assert.deepStrictEqual(psutil.normalizeDisks({ name: 'C:\\' }), [{ name: 'C:\\' }]);
+  assert.deepStrictEqual(psutil.normalizeDisks([{ name: 'C:\\' }]), [{ name: 'C:\\' }]);
+});
+
 test('sysinfo returns disks + admin flag + machineGuid (integration, Windows)', async () => {
   const info = await psutil.getSysInfo();
   assert.ok(Array.isArray(info.disks) && info.disks.length >= 1);

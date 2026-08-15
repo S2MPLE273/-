@@ -28,6 +28,13 @@ test('expired key rejected', () => {
   assert.equal(r.reason, 'expired');
 });
 
+test('evening-issued key valid through next day (day granularity)', () => {
+  const key = lic.generate({ validDays: 1, issueTime: Date.UTC(2026, 7, 15, 23) });
+  assert.equal(lic.verify(key, { now: () => Date.UTC(2026, 7, 15, 23, 30) }).ok, true);
+  assert.equal(lic.verify(key, { now: () => Date.UTC(2026, 7, 16, 0, 30) }).ok, true, 'next morning still valid');
+  assert.equal(lic.verify(key, { now: () => Date.UTC(2026, 7, 17) }).ok, false, 'expired after D+1');
+});
+
 test('machine binding: different machine rejected', () => {
   const key = lic.generate({ validDays: 2, issueTime: Date.UTC(2026, 7, 15) });
   const state = { save: (s) => { Object.assign(state, s); } };

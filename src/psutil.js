@@ -56,13 +56,21 @@ $p = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdent
 $isAdmin = $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $mg = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Cryptography' -Name MachineGuid).MachineGuid
 $procs = (Get-Process | Select-Object -ExpandProperty Name) -join ','
-Write-Output ('{"disks":' + ($disks | ConvertTo-Json -Compress) + ',"isAdmin":' + $isAdmin.ToString().ToLower() + ',"machineGuid":"' + $mg + '","procs":"' + $procs + '"}')
+Write-Output ('{"disks":' + (ConvertTo-Json -InputObject @($disks) -Compress) + ',"isAdmin":' + $isAdmin.ToString().ToLower() + ',"machineGuid":"' + $mg + '","procs":"' + $procs + '"}')
 `;
+
+// PS 5.1 管道会把单元素数组展开成裸对象（$disks | ConvertTo-Json），
+// 导致单盘机器上 data.disks 不是数组。双保险：PS 端 @() 包裹 + JS 端归一化。
+function normalizeDisks(disks) {
+  return Array.isArray(disks) ? disks : (disks ? [disks] : []);
+}
 
 async function getSysInfo() {
   const r = await runJson('sysinfo.ps1', SYSINFO_PS, {}, { timeoutMs: 60000 });
   if (!r.ok) throw new Error('sysinfo failed: ' + r.error);
-  return r.data[0];
+  const info = r.data[0];
+  info.disks = normalizeDisks(info.disks);
+  return info;
 }
 
-module.exports = { b64json, runPs, runJson, getSysInfo, PS_DIR };
+module.exports = { b64json, runPs, runJson, getSysInfo, normalizeDisks, PS_DIR };
