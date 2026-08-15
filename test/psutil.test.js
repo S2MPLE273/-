@@ -18,3 +18,24 @@ test('sysinfo returns disks + admin flag + machineGuid (integration, Windows)', 
   assert.equal(typeof info.isAdmin, 'boolean');
   assert.match(info.machineGuid, /^[0-9a-f-]{20,40}$/i);
 });
+
+test('runJson: non-zero exit maps to ok:false', async () => {
+  const r = await psutil.runJson('fail.ps1', 'param([string]$Json)\nexit 3\n', {});
+  assert.equal(r.ok, false);
+  assert.match(r.error, /exit 3/);
+});
+
+test('runJson: bad json output maps to ok:false', async () => {
+  const r = await psutil.runJson('badjson.ps1', 'param([string]$Json)\n[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\nWrite-Output "not json"\n', {});
+  assert.equal(r.ok, false);
+  assert.match(r.error, /bad json output/);
+});
+
+test('runJson: utf8 output roundtrip (Chinese preserved)', async () => {
+  // Script body stays pure ASCII; the Chinese only appears in the JS param,
+  // which runJson base64-encodes before passing to PowerShell.
+  const body = 'param([string]$Json)\n[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n$d=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Json)) | ConvertFrom-Json\nWrite-Output (\'{"echo":"\' + $d.name + \'"}\')\n';
+  const r = await psutil.runJson('echo.ps1', body, { name: '磁盘清理测试' });
+  assert.equal(r.ok, true);
+  assert.equal(r.data[0].echo, '磁盘清理测试');
+});

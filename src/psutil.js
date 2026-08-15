@@ -6,16 +6,26 @@ const PS_DIR = path.join(process.env.ProgramData || 'C:\\ProgramData', 'DiskClea
 
 function b64json(obj) { return Buffer.from(JSON.stringify(obj), 'utf8').toString('base64'); }
 
+// Embedded script conventions:
+// - Script bodies must be pure ASCII (zero non-ASCII bytes). Non-ASCII data (e.g.
+//   Chinese paths) travels via the base64-encoded JSON param, never in the script source.
+// - Every script body must set `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`
+//   as its first executable line (immediately after the `param(...)` line, if any).
+//   PS 5.1 defaults to GBK on zh-CN systems, which corrupts Chinese paths/names in
+//   stdout; forcing UTF-8 keeps stdout parseable.
 function runPs(scriptName, scriptBody, params = {}, { timeoutMs = 300000 } = {}) {
-  return new Promise((resolve) => {
-    fs.mkdirSync(PS_DIR, { recursive: true });
-    const file = path.join(PS_DIR, scriptName);
-    fs.writeFileSync(file, scriptBody, 'utf8');
+  return new Promise((resolve, reject) => {
+    let file;
+    try {
+      fs.mkdirSync(PS_DIR, { recursive: true });
+      file = path.join(PS_DIR, scriptName);
+      fs.writeFileSync(file, scriptBody, 'utf8');
+    } catch (e) { reject(e); return; }
     const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', file];
     if (params.json !== undefined) args.push('-Json', params.json);
     execFile('powershell.exe', args, { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
       resolve({
-        code: err ? (err.code === undefined ? -1 : err.code) : 0,
+        code: err ? (err.code == null ? -1 : err.code) : 0,
         timedOut: err && err.killed,
         stdout: String(stdout),
         stderr: String(stderr),
@@ -24,19 +34,19 @@ function runPs(scriptName, scriptBody, params = {}, { timeoutMs = 300000 } = {})
   });
 }
 
-function runJson(scriptName, scriptBody, params = {}, opts = {}) {
-  return new Promise(async (resolve) => {
-    const r = await runPs(scriptName, scriptBody, { json: b64json(params) }, opts);
-    if (r.code !== 0) return resolve({ ok: false, error: r.stderr.trim() || ('exit ' + r.code), raw: r });
-    try {
-      const lines = r.stdout.split(/\r?\n/).filter(l => l.trim());
-      const data = lines.map(l => JSON.parse(l.trim()));
-      resolve({ ok: true, data, raw: r });
-    } catch (e) { resolve({ ok: false, error: 'bad json output: ' + e.message, raw: r }); }
-  });
+async function runJson(scriptName, scriptBody, params = {}, opts = {}) {
+  const r = await runPs(scriptName, scriptBody, { json: b64json(params) }, opts);
+  if (r.timedOut) return { ok: false, error: 'timeout', raw: r };
+  if (r.code !== 0) return { ok: false, error: r.stderr.trim() || ('exit ' + r.code), raw: r };
+  try {
+    const lines = r.stdout.split(/\r?\n/).filter(l => l.trim());
+    const data = lines.map(l => JSON.parse(l.trim()));
+    return { ok: true, data, raw: r };
+  } catch (e) { return { ok: false, error: 'bad json output: ' + e.message, raw: r }; }
 }
 
 const SYSINFO_PS = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference='SilentlyContinue'
 $disks = @()
 Get-PSDrive -PSProvider FileSystem | ForEach-Object {
