@@ -48,14 +48,16 @@ function createLicense({ masterKey }) {
     return crypto.createHmac('sha256', Buffer.from(masterKey, 'hex')).update(payloadBuf).digest().slice(0, 3);
   }
   function generate({ clientTag = '', validDays = 1, issueTime = Date.now() } = {}) {
+    const vd = Math.max(1, Math.min(63, Math.floor(validDays) || 1)); // 钳位到 6 位（1-63），防止静默回绕
     const issueDay = Math.floor((issueTime - EPOCH) / DAY_MS);
     const tagHash = clientTag ? crypto.createHash('sha256').update(String(clientTag), 'utf8').digest().readUInt16BE(0) : 0;
     // 52 bits payload（补零至 56 bits = 7 字节）+ 3 字节签名 = 10 字节 = 80 bits = 16 chars = 4 组
-    const payload = packBits([[1, 2], [issueDay, 16], [validDays, 6], [tagHash, 16], [0, 12]]);
+    const payload = packBits([[1, 2], [issueDay, 16], [vd, 6], [tagHash, 16], [0, 12]]);
     const sig = sign(payload);
     const body = b32encode(Buffer.concat([payload, sig]));
     return 'DKC-' + group(body.slice(0, 16));
   }
+  // state 必须是普通对象；持久化仅通过 state.save(state) 回调（Task 9 传入文件存储实现）
   function verify(key, { now = () => Date.now(), machineGuid = 'unknown', state } = {}) {
     if (typeof key !== 'string' || !/^DKC-[2-9A-HJ-NP-Z]{4}(-[2-9A-HJ-NP-Z]{4}){3}$/.test(key)) return { ok: false, reason: 'invalid' };
     const body = key.slice(4).replace(/-/g, '');
