@@ -28,11 +28,15 @@ foreach($e in $data.entries){
       }
       'recycle' { Clear-RecycleBin -Force -ErrorAction Stop }
       'dism' {
+        [Console]::OutputEncoding = [Text.Encoding]::Default
         $r = Dism.exe /Online /Cleanup-Image /StartComponentCleanup 2>&1
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         if($LASTEXITCODE -ne 0){ $ok=$false; $err = ($r -join ' | ').Substring(0,[Math]::Min(500,($r -join ' | ').Length)) }
       }
       'hiber' {
+        [Console]::OutputEncoding = [Text.Encoding]::Default
         $r = powercfg /h off 2>&1
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         if($LASTEXITCODE -ne 0){ $ok=$false; $err = (($r | Out-String).Trim()).Substring(0,[Math]::Min(300,(($r | Out-String).Trim()).Length)) }
       }
     }
@@ -68,6 +72,8 @@ function createCleaner({ psutil, diagnose }) {
   }
 
   async function clean({ disk, items }, onProgress, { retryDelayMs = 2000 } = {}) {
+    // Get-PSDrive 的 Root 是 'C:\' 形式，'C:' 匹配不到任何盘，全部条目会静默返回 ok:true freed:0
+    disk = /^[A-Za-z]:$/.test(disk) ? disk + '\\' : disk;
     const results = [];
     let freedTotal = 0;
     // 串行执行（避免多 PowerShell 同时删文件造成磁盘争用），失败自动重试一次，再失败走诊断
@@ -88,7 +94,7 @@ function createCleaner({ psutil, diagnose }) {
         r = await cleanOne(spec.kind, id, spec.paths, spec.filters, disk);
       }
       if (!r.ok && diagnose) {
-        const et = classifyError({ code: 0, stderr: r.error });
+        const et = classifyError({ code: 0, stderr: r.error, timedOut: r.error === 'timeout' });
         r.diagnosis = await diagnose.diagnose(id, et);
       }
       freedTotal += r.freed || 0;

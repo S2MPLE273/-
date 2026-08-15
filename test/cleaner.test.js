@@ -40,8 +40,10 @@ test('clean: retries once on failure, then diagnoses', async () => {
     diag: { diagnose: async () => ({ errorType: 'access_denied', detected: [{ name: '火绒安全' }], suggestion: 's', retryable: true }) },
   }));
   // 覆盖 runJson 以模拟两次失败
-  cleaner._psutil.runJson = async () => ({ ok: false, error: 'Access is denied.' });
+  let calls = 0;
+  cleaner._psutil.runJson = async () => { calls++; return { ok: false, error: 'Access is denied.' }; };
   const res = await cleaner.clean({ disk: 'C:\\', items: ['user_temp'] }, () => {}, { retryDelayMs: 0 });
+  assert.equal(calls, 2, 'must retry once');
   assert.equal(res.results[0].ok, false);
   assert.ok(res.results[0].diagnosis);
   assert.equal(res.results[0].diagnosis.errorType, 'access_denied');
