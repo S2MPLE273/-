@@ -15,9 +15,9 @@ function req(port, method, p, body, token) {
   });
 }
 
-function makeServer() {
+function makeServer(opts = {}) {
   const state = { items: [{ id: 'user_temp', sizeBytes: 1 }, { id: 'win_temp', sizeBytes: 2 }], spaceDist: [] };
-  const scanner = { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
+  const scanner = opts.scanner || { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
   const cleaner = { clean: async () => ({ results: [{ id: 'user_temp', ok: true, freed: 10 }], freedTotal: 10 }) };
   const license = { verify: (k) => k === 'GOODKEY' ? { ok: true } : { ok: false, reason: 'invalid' } };
   const psutil = { getSysInfo: async () => ({ disks: [{ name: 'C:\\', total: 100, free: 40 }], isAdmin: true, machineGuid: 'guid-1', procs: '' }) };
@@ -124,5 +124,28 @@ test('scan poll includes progress', async () => {
   assert.equal(p.total, 2);
   assert.equal(p.phase, 'space');
   assert.deepEqual(p.current, []);
+  srv.close();
+});
+
+test('progress exposes current labels and partial done mid-scan', async () => {
+  let releaseItems;
+  const itemsGate = new Promise(r => { releaseItems = r; });
+  const scanner = {
+    scanAll: async (disk, onItem, onPhase) => {
+      if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件', '系统临时文件'] });
+      onItem({ id: 'user_temp', sizeBytes: 1 });
+      await itemsGate;
+      return { items: [], spaceDist: [] };
+    },
+    getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }],
+  };
+  const srv = await makeServer({ scanner }); const port = await listen(srv);
+  const started = await req(port, 'POST', '/api/scan', { disk: 'C:\\' }, 'tok');
+  const mid = await req(port, 'GET', '/api/scan/' + started.body.data.taskId, null, 'tok');
+  assert.equal(mid.body.data.status, 'running');
+  assert.equal(mid.body.data.progress.phase, 'items');
+  assert.deepEqual(mid.body.data.progress.current, ['用户临时文件', '系统临时文件']);
+  assert.equal(mid.body.data.progress.done, 1);
+  releaseItems();
   srv.close();
 });
