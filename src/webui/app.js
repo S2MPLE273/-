@@ -42,6 +42,7 @@
     $('key-status').textContent = ''; $('key-status').className = 'sub';
     $('btn-clean').disabled = true; $('btn-clean').textContent = '开始清理';
     $('space-dist').hidden = true; $('dist-bars').innerHTML = '';
+    $('license-box').hidden = true;
     show('scan'); $('scan-title').textContent = '正在扫描 ' + state.disk + ' …';
     $('scan-sub').textContent = '可清理空间（实时累计）';
     const r = await api('POST', '/api/scan', { disk: state.disk });
