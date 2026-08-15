@@ -218,3 +218,19 @@ test('scan progress total reflects selected disk', async () => {
   assert.equal(poll1.body.data.progress.total, 1);
   srv.close();
 });
+
+test('clean rejects non-drive-root or non-string disk', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const r1 = await req(port, 'POST', '/api/clean', { key: 'GOODKEY', disk: 'D:\\Windows', items: ['recycle_bin'] }, 'tok');
+  assert.equal(r1.status, 400);
+  const r2 = await req(port, 'POST', '/api/clean', { key: 'GOODKEY', disk: 123, items: ['user_temp'] }, 'tok');
+  assert.equal(r2.status, 400);
+  srv.close();
+});
+
+test('scan rejects non-drive-root disk', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const r = await req(port, 'POST', '/api/scan', { disk: 'C:\\Windows' }, 'tok');
+  assert.equal(r.status, 400);
+  srv.close();
+});

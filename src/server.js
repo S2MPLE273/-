@@ -19,8 +19,13 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     catch (e) { return false; }
   }
 
+  function isValidDisk(disk) {
+    return typeof disk === 'string' && /^[A-Za-z]:\\?$/.test(disk);
+  }
+
   async function runClean(body) {
     const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
+    if (!isValidDisk(disk)) return { status: 400, body: { ok: false, error: 'invalid disk' } };
     const items = (body && body.items) || [];
     const known = new Set(scanner.getItems(disk).map(i => i.id));
     if (!Array.isArray(items) || !items.length || !items.every(id => known.has(id))) return { status: 400, body: { ok: false, error: 'invalid item id' } };
@@ -55,6 +60,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     }
     if (req.method === 'POST' && p === '/api/scan') {
       const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
+      if (!isValidDisk(disk)) return json(res, 400, { ok: false, error: 'invalid disk' });
       const taskId = Math.random().toString(36).slice(2, 10);
       const task = { id: taskId, status: 'running', disk, items: [], spaceDist: [], cursor: 0, progress: { phase: 'items', done: 0, total: scanner.getItems(disk).length, current: [] } };
       tasks.set(taskId, task);
