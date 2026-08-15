@@ -21,7 +21,7 @@ v0.2 新增：扫描进度条+动效、已选/共统计、管理员接口。v0.2
 - 主密钥指纹 `da73f44b`，存于 `tools/master.key`（gitignored，**务必备份**——丢失后旧密钥全部作废、exe/keygen 配对断裂）
 - 尚未完成：v0.2.1 切盘修复的真实浏览器端到端点击验收、正式外发（未做代码签名，客户机 SmartScreen 会提示未知发布者）
 - 全部提交在 main 分支；远端仓库：`https://github.com/S2MPLE273/-`（2026-08-16 已推送；仓库不含任何密钥——`tools/master.key`、`dist/` 均 gitignored）
-- 推送网络说明：本机经 Watt Toolkit（Steam++）hosts 加速访问 GitHub；git 全局代理配置 `127.0.0.1:26561` 已失效，推送需带 `-c http.proxy= -c https.proxy=` 覆盖（或修正全局配置）
+- 推送网络说明：本机经 Watt Toolkit（Steam++）hosts 加速访问 GitHub（推送时需保持其运行）；2026-08-16 已清除失效的 git 代理配置（原 127.0.0.1:26561，全局与项目两处），直接 `git push` 即可
 
 ## 3. 交付物与使用方法
 
