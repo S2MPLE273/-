@@ -10,7 +10,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
   const tasks = new Map();
 
   function verifyKey(key) {
-    const state = loadState ? loadState() : { entries: {} };
+    const state = loadState ? (loadState() || { entries: {} }) : { entries: {} };
     state.save = () => { if (saveState) saveState(state); };
     return license.verify(key, { now: Date.now, machineGuid, state });
   }
@@ -20,6 +20,8 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     if (url.searchParams.get('token') !== token) return json(res, 403, { ok: false, error: 'forbidden' });
     const p = url.pathname;
     const body = await readBody(req);
+    if (body && body.overflow) return json(res, 413, { ok: false, error: 'body too large' });
+    if (body && body.badJson) return json(res, 400, { ok: false, error: 'invalid json' });
 
     if (req.method === 'GET' && p === '/') {
       const html = webui.html
@@ -59,10 +61,10 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
       if (!v.ok) return json(res, 403, { ok: false, error: 'license_' + v.reason, data: v });
       const items = (body && body.items) || [];
       const known = new Set(scanner.getItems().map(i => i.id));
-      if (!items.length || !items.every(id => known.has(id))) return json(res, 400, { ok: false, error: 'invalid item id' });
+      if (!Array.isArray(items) || !items.length || !items.every(id => known.has(id))) return json(res, 400, { ok: false, error: 'invalid item id' });
       const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
-      const res2 = await cleaner.clean({ disk, items }, () => {});
-      return json(res, 200, { ok: true, data: res2 });
+      try { const res2 = await cleaner.clean({ disk, items }, () => {}); return json(res, 200, { ok: true, data: res2 }); }
+      catch (e) { return json(res, 500, { ok: false, error: e.message }); }
     }
     json(res, 404, { ok: false, error: 'not found' });
   }
@@ -70,8 +72,8 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
   function readBody(req) {
     return new Promise((resolve) => {
       let b = '';
-      req.on('data', c => { b += c; if (b.length > 1e6) req.destroy(); });
-      req.on('end', () => { try { resolve(b ? JSON.parse(b) : null); } catch (e) { resolve(null); } });
+      req.on('data', c => { b += c; if (b.length > 1e6) { req.destroy(); resolve({ overflow: true }); } });
+      req.on('end', () => { try { resolve(b ? JSON.parse(b) : null); } catch (e) { resolve({ badJson: true }); } });
       req.on('error', () => resolve(null));
     });
   }

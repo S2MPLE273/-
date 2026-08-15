@@ -16,7 +16,7 @@ function req(port, method, p, body, token) {
 }
 
 function makeServer() {
-  const state = { items: [], spaceDist: [] };
+  const state = { items: [{ id: 'user_temp', sizeBytes: 1 }, { id: 'win_temp', sizeBytes: 2 }], spaceDist: [] };
   const scanner = { scanAll: async (disk, onItem) => { state.items.forEach(onItem); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
   const cleaner = { clean: async () => ({ results: [{ id: 'user_temp', ok: true, freed: 10 }], freedTotal: 10 }) };
   const license = { verify: (k) => k === 'GOODKEY' ? { ok: true } : { ok: false, reason: 'invalid' } };
@@ -44,9 +44,14 @@ test('scan flow: start + incremental poll', async () => {
   const started = await req(port, 'POST', '/api/scan', { disk: 'C:\\' }, 'tok');
   assert.equal(started.status, 200);
   const id = started.body.data.taskId;
-  const poll = await req(port, 'GET', '/api/scan/' + id, null, 'tok');
-  assert.equal(poll.status, 200);
-  assert.equal(poll.body.data.status, 'done');
+  const poll1 = await req(port, 'GET', '/api/scan/' + id, null, 'tok');
+  assert.equal(poll1.status, 200);
+  assert.equal(poll1.body.data.status, 'done');
+  assert.equal(poll1.body.data.inc.length, 2, 'first poll returns all items');
+  const poll2 = await req(port, 'GET', '/api/scan/' + id, null, 'tok');
+  assert.equal(poll2.body.data.inc.length, 0, 'second poll returns nothing new');
+  const missing = await req(port, 'GET', '/api/scan/nonexistent', null, 'tok');
+  assert.equal(missing.status, 404);
   srv.close();
 });
 
@@ -76,6 +81,13 @@ test('clean rejects unknown item ids', async () => {
   srv.close();
 });
 
+test('clean with non-array items returns 400, no crash', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const r = await req(port, 'POST', '/api/clean', { key: 'GOODKEY', disk: 'C:\\', items: 'user_temp' }, 'tok');
+  assert.equal(r.status, 400);
+  srv.close();
+});
+
 test('verify passes machine-bound state (machineGuid + state supplied)', async () => {
   // 单机绑定接线验证：license.verify 必须收到 machineGuid 与 file-backed state
   let received;
@@ -86,5 +98,6 @@ test('verify passes machine-bound state (machineGuid + state supplied)', async (
   await req(port, 'POST', '/api/verify', { key: 'GOODKEY' }, 'tok');
   assert.ok(received && received.machineGuid === 'guid-1', 'machineGuid must be passed');
   assert.ok(received && received.state && typeof received.state.save === 'function', 'file-backed state with save must be passed');
+  assert.equal(typeof received.now, 'function');
   srv.close();
 });
