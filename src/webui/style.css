@@ -57,15 +57,6 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
 .dots span:nth-child(3) { animation-delay: .4s; }
 @keyframes dkc-pulse { 0%, 100% { opacity: .2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 
-.prog-bar.indeterminate .prog-fill {
-  /* !important 覆盖 JS 每次 poll 写入的内联 width，space 阶段强制满宽流光 */
-  width: 100% !important;
-  background: linear-gradient(90deg, #cfe3f7 0%, #0067c0 50%, #cfe3f7 100%);
-  background-size: 200% 100%;
-  animation: dkc-shimmer 1.6s linear infinite;
-}
-@keyframes dkc-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-
 .item { animation: dkc-in .25s ease-out both; }
 @keyframes dkc-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 

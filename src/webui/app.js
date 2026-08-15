@@ -81,10 +81,9 @@
     $('key-input').value = ''; $('clean-progress').textContent = '';
     $('scan-progress').hidden = false;
     $('prog-fill').style.width = '0%';
-    $('prog-bar').classList.remove('indeterminate');
     $('prog-bar').setAttribute('aria-valuenow', '0');
     $('prog-text').textContent = '正在准备扫描…';
-    $('prog-meta').textContent = '0 / 17 项';
+    $('prog-meta').textContent = '准备扫描…';
     $('sel-line').hidden = true;
     $('view-scan').setAttribute('aria-busy', 'true');
     show('scan'); $('scan-title').textContent = '正在扫描 ' + state.disk + ' …';
@@ -117,21 +116,20 @@
 
   function renderProgress(p) {
     if (!p) return;
-    const total = p.total || 17;
+    const total = p.total || 0;
     const done = p.done || 0;
-    const pct = Math.min(100, Math.round(done / total * 100));
+    // 进度单位 = 扫描项 + 空间分布阶段 1 个单位；条只前进不循环
+    const phaseDone = (p.phase === 'space' || p.phase === 'special') ? 1 : 0;
+    const pct = total > 0 ? Math.min(100, Math.round((done + phaseDone) / (total + 1) * 100)) : 0;
     const bar = $('prog-bar');
     $('prog-fill').style.width = pct + '%';
     bar.setAttribute('aria-valuenow', String(pct));
     $('prog-meta').textContent = done + ' / ' + total + ' 项 · ' + pct + '%';
     if (p.phase === 'space') {
-      bar.classList.add('indeterminate');
-      $('prog-text').textContent = '正在分析磁盘空间分布（约需 1–3 分钟）';
+      $('prog-text').textContent = '正在分析磁盘空间分布（较大磁盘约需 1–3 分钟）';
     } else if (p.phase === 'special') {
-      bar.classList.remove('indeterminate');
       $('prog-text').textContent = '正在统计回收站与特殊项…';
     } else {
-      bar.classList.remove('indeterminate');
       $('prog-text').textContent = '正在扫描：' + ((p.current && p.current.length) ? p.current.join('、') : '…');
     }
   }
