@@ -1,0 +1,14 @@
+{
+  "name": "diskclean-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Green single-exe disk cleaner with offline license key",
+  "scripts": {
+    "test": "node --test test/",
+    "build": "node tools/build.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "postject": "^1.0.0-alpha.6"
+  }
+}
