@@ -58,6 +58,7 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
 @keyframes dkc-pulse { 0%, 100% { opacity: .2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 
 .prog-bar.indeterminate .prog-fill {
+  /* !important 覆盖 JS 每次 poll 写入的内联 width，space 阶段强制满宽流光 */
   width: 100% !important;
   background: linear-gradient(90deg, #cfe3f7 0%, #0067c0 50%, #cfe3f7 100%);
   background-size: 200% 100%;
@@ -77,4 +78,6 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
 
 @media (prefers-reduced-motion: reduce) {
   .prog-icon path, .prog-fill, .dots span, .item, .item.failed .iname, .ck path { animation: none !important; transition: none !important; }
+  /* 描边动画禁用后对勾必须直接可见（基础样式 dashoffset:24 是全隐） */
+  .ck path { stroke-dashoffset: 0 !important; }
 }
