@@ -57,6 +57,7 @@
     $('scan-progress').hidden = false;
     $('prog-fill').style.width = '0%';
     $('prog-bar').classList.remove('indeterminate');
+    $('prog-bar').setAttribute('aria-valuenow', '0');
     $('prog-text').textContent = '正在准备扫描…';
     $('prog-meta').textContent = '0 / 17 项';
     $('sel-line').hidden = true;
@@ -64,7 +65,12 @@
     show('scan'); $('scan-title').textContent = '正在扫描 ' + state.disk + ' …';
     $('scan-sub').textContent = '可清理空间（实时累计）';
     const r = await api('POST', '/api/scan', { disk: state.disk });
-    if (!r.ok) { $('scan-sub').textContent = '启动扫描失败'; return; }
+    if (!r.ok) {
+      $('scan-progress').hidden = true;
+      $('view-scan').setAttribute('aria-busy', 'false');
+      $('scan-sub').textContent = '启动扫描失败';
+      return;
+    }
     pollTimer = setInterval(() => poll(r.data.taskId), 1200);
   };
 
@@ -87,11 +93,11 @@
     if (!p) return;
     const total = p.total || 17;
     const done = p.done || 0;
-    const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0;
-    $('prog-fill').style.width = pct + '%';
-    $('prog-bar').setAttribute('aria-valuenow', String(pct));
-    $('prog-meta').textContent = done + ' / ' + total + ' 项 · ' + pct + '%';
+    const pct = Math.min(100, Math.round(done / total * 100));
     const bar = $('prog-bar');
+    $('prog-fill').style.width = pct + '%';
+    bar.setAttribute('aria-valuenow', String(pct));
+    $('prog-meta').textContent = done + ' / ' + total + ' 项 · ' + pct + '%';
     if (p.phase === 'space') {
       bar.classList.add('indeterminate');
       $('prog-text').textContent = '正在分析磁盘空间分布（约需 1–3 分钟）';
@@ -142,6 +148,7 @@
     if (!r.ok) {
       clearInterval(pollTimer);
       $('scan-progress').hidden = true;
+      $('view-scan').setAttribute('aria-busy', 'false');
       $('scan-title').textContent = '扫描失败';
       $('scan-sub').textContent = (r.error || '网络错误');
       return;
