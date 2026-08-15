@@ -62,14 +62,30 @@ param([string]$Json)
 $ErrorActionPreference='SilentlyContinue'
 $data = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Json)) | ConvertFrom-Json
 $rb = 0L
-try {
-  $sh = New-Object -ComObject Shell.Application
-  foreach($item in $sh.Namespace(0xA).Items()){ $rb += $item.Size }
-} catch {}
+$rbPath = $data.disk + '$RECYCLE.BIN'
+if(Test-Path -LiteralPath $rbPath){
+  $stack = New-Object System.Collections.Stack
+  $stack.Push($rbPath)
+  while($stack.Count -gt 0){
+    $cur = $stack.Pop()
+    try {
+      foreach($f in [IO.Directory]::GetFiles($cur)){
+        $rb += ([IO.FileInfo]::new($f)).Length
+      }
+      foreach($d in [IO.Directory]::GetDirectories($cur)){
+        $di = [IO.DirectoryInfo]::new($d)
+        if($di.Attributes -band [IO.FileAttributes]::ReparsePoint){ continue }
+        $stack.Push($d)
+      }
+    } catch {}
+  }
+}
 Write-Output ('{"id":"recycle_bin","size":' + $rb + '}')
 Write-Output '{"id":"winsxs","size":0}'
 Write-Output '{"id":"driver_store","size":0}'
 `;
+
+function normalizeDisk(disk) { return /^[A-Za-z]:$/.test(disk) ? disk + '\\' : disk; }
 
 const H = homedir();
 const LOCAL = process.env.LOCALAPPDATA || (H + '\\AppData\\Local');
@@ -78,7 +94,7 @@ const SYSD = (process.env.SystemDrive || 'C:') + '\\';
 const ITEMS = [
   { id: 'user_temp', label: '用户临时文件', scope: 'user', risk: 'low', paths: [LOCAL + '\\Temp'] },
   { id: 'win_temp', label: '系统临时文件', scope: 'system', risk: 'low', paths: [SYSD + 'Windows\\Temp'] },
-  { id: 'recycle_bin', label: '回收站（所有磁盘）', scope: 'user', risk: 'low', paths: [] },
+  { id: 'recycle_bin', label: '回收站（本盘）', scope: 'user', risk: 'low', paths: [] },
   { id: 'thumb_cache', label: '缩略图缓存', scope: 'user', risk: 'low', paths: [LOCAL + '\\Microsoft\\Windows\\Explorer'] },
   { id: 'crash_dumps', label: '崩溃转储', scope: 'user', risk: 'low', paths: [LOCAL + '\\CrashDumps', SYSD + 'Windows\\Minidump'] },
   { id: 'wu_cache', label: 'Windows 更新缓存', scope: 'system', risk: 'low', paths: [SYSD + 'Windows\\SoftwareDistribution\\Download'] },
@@ -97,12 +113,21 @@ const ITEMS = [
 ];
 
 function createScanner({ psutil }) {
+  function getItems(disk) {
+    disk = normalizeDisk(disk || SYSD);
+    const isSystem = disk.toLowerCase() === SYSD.toLowerCase();
+    if (isSystem) return ITEMS;
+    // 非系统盘白名单底线：仅回收站（本盘）；空间分布另行分析
+    return ITEMS.filter(i => i.id === 'recycle_bin');
+  }
+
   async function scanAll(disk, onItem, onPhase) {
     // 'C:' without a trailing backslash is the drive-relative current directory
     // (usually C:\Windows\system32), not the drive root. Normalize to 'C:\'.
-    disk = /^[A-Za-z]:$/.test(disk) ? disk + '\\' : disk;
+    disk = normalizeDisk(disk);
+    const defs = getItems(disk);
     const items = [];
-    const scanable = ITEMS.filter(i => i.paths.length > 0);
+    const scanable = defs.filter(i => i.paths.length > 0);
     // 分批并发 4 个（避免一次性拉起 15 个 PowerShell 进程）
     const batchSize = 4;
     for (let i = 0; i < scanable.length; i += batchSize) {
@@ -120,11 +145,12 @@ function createScanner({ psutil }) {
         onItem(item);
       }));
     }
-    // 空间分布（所选盘，独立）
+    // 空间分布（所选盘，独立）。C: 全盘遍历在大盘/慢盘上可能超过 5 分钟默认超时，
+    // 超时会导致 spaceDist 为空、TOP10 不显示——单独放宽到 10 分钟。
     if (onPhase) onPhase({ phase: 'space' });
-    const rTop = await psutil.runJson('scan_toplevel.ps1', SCAN_TOPLEVEL_PS, { disk });
+    const rTop = await psutil.runJson('scan_toplevel.ps1', SCAN_TOPLEVEL_PS, { disk }, { timeoutMs: 600000 });
     const spaceDist = (rTop.ok && Array.isArray(rTop.data[0])) ? rTop.data[0] : [];
-    // 特殊项：回收站 / WinSxS / driver_store 用轻量统计（预估）
+    // 特殊项：回收站（本盘）/ WinSxS / driver_store 用轻量统计（预估）
     if (onPhase) onPhase({ phase: 'special' });
     const special = await scanSpecial(psutil, disk);
     for (const s of special) { items.push(s); onItem(s); }
@@ -134,19 +160,20 @@ function createScanner({ psutil }) {
   async function scanSpecial(psutil, disk) {
     const out = [];
     const r = await psutil.runJson('scan_special.ps1', SCAN_SPECIAL_PS, { disk });
+    const defs = getItems(disk);
     if (r.ok && r.data.length) {
       for (const d of r.data) {
-        const def = ITEMS.find(i => i.id === d.id);
+        const def = defs.find(i => i.id === d.id);
         if (def) out.push({ id: def.id, label: def.label, scope: def.scope, risk: def.risk, sizeBytes: d.size, error: d.error });
       }
     }
-    for (const def of ITEMS.filter(i => i.paths.length === 0 && !out.some(o => o.id === i.id))) {
+    for (const def of defs.filter(i => i.paths.length === 0 && !out.some(o => o.id === i.id))) {
       out.push({ id: def.id, label: def.label, scope: def.scope, risk: def.risk, sizeBytes: 0, error: 'unavailable' });
     }
     return out;
   }
 
-  return { scanAll, getItems: () => ITEMS, ps: { SCAN_ENTRIES_PS, SCAN_TOPLEVEL_PS, SCAN_SPECIAL_PS } };
+  return { scanAll, getItems, ps: { SCAN_ENTRIES_PS, SCAN_TOPLEVEL_PS, SCAN_SPECIAL_PS } };
 }
 
 module.exports = { createScanner, ITEMS, SCAN_ENTRIES_PS, SCAN_TOPLEVEL_PS, SCAN_SPECIAL_PS };

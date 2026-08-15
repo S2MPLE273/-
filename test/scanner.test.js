@@ -1,7 +1,7 @@
 // test/scanner.test.js
 const test = require('node:test');
 const assert = require('node:assert');
-const { createScanner, ITEMS, SCAN_TOPLEVEL_PS } = require('../src/scanner');
+const { createScanner, ITEMS, SCAN_TOPLEVEL_PS, SCAN_SPECIAL_PS } = require('../src/scanner');
 const psutil = require('../src/psutil');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -83,4 +83,55 @@ test('scanAll reports phases: items batches then space then special', async () =
   assert.ok(kinds.includes('special'), 'special phase reported');
   assert.ok(kinds.indexOf('items') < kinds.indexOf('space'), 'items before space');
   assert.ok(kinds.indexOf('space') < kinds.indexOf('special'), 'space before special');
+});
+
+test('getItems: system disk returns all items, non-system only recycle_bin', () => {
+  const scanner = createScanner({ psutil: fakePsutil({}) });
+  const sys = scanner.getItems('C:');
+  assert.equal(sys.length, ITEMS.length);
+  assert.ok(sys.some(i => i.id === 'recycle_bin'));
+  const non = scanner.getItems('D:');
+  assert.deepEqual(non.map(i => i.id), ['recycle_bin']);
+  assert.equal(non[0].label, '回收站（本盘）');
+});
+
+test('scanAll: non-system disk scans only recycle_bin, no entries batches', async () => {
+  const calls = [];
+  const scanner = createScanner({ psutil: {
+    runJson: async (name, body, params) => {
+      calls.push({ name, params });
+      if (name === 'scan_special.ps1') return { ok: true, data: [{ id: 'recycle_bin', size: 4096 }] };
+      if (name === 'scan_toplevel.ps1') return { ok: true, data: [[{ path: 'D:\\Games', size: 999 }]] };
+      return { ok: true, data: [] };
+    },
+  } });
+  const res = await scanner.scanAll('D:', () => {});
+  assert.deepEqual(res.items.map(i => i.id), ['recycle_bin']);
+  assert.equal(res.items[0].sizeBytes, 4096);
+  assert.ok(res.spaceDist[0] && res.spaceDist[0].path === 'D:\\Games');
+  assert.ok(!calls.some(c => c.name === 'scan_entries.ps1'), 'no entries batches for non-system disk');
+  assert.equal(calls.find(c => c.name === 'scan_special.ps1').params.disk, 'D:\\');
+});
+
+test('toplevel scan uses extended 10min timeout', async () => {
+  let opts;
+  const scanner = createScanner({ psutil: {
+    runJson: async (n, b, p, o) => { if (n === 'scan_toplevel.ps1') opts = o; return { ok: true, data: [] }; },
+  } });
+  await scanner.scanAll('C:', () => {});
+  assert.equal(opts.timeoutMs, 600000);
+});
+
+test('SCAN_SPECIAL_PS integration: per-disk $RECYCLE.BIN walk sums size', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'dkc_rb_'));
+  try {
+    const rb = path.join(base, '$RECYCLE.BIN');
+    fs.mkdirSync(rb);
+    fs.writeFileSync(path.join(rb, 'f1.bin'), Buffer.alloc(1024));
+    fs.mkdirSync(path.join(rb, 'S-1-5-18'));
+    fs.writeFileSync(path.join(rb, 'S-1-5-18', 'f2.bin'), Buffer.alloc(2048));
+    const r = await psutil.runJson('scan_special_test.ps1', SCAN_SPECIAL_PS, { disk: base + '\\' }, { timeoutMs: 60000 });
+    assert.equal(r.ok, true);
+    assert.equal(r.data.find(d => d.id === 'recycle_bin').size, 3072);
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
