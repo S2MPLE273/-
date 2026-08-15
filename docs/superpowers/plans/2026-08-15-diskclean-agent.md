@@ -109,7 +109,7 @@ git commit -m "chore: 项目脚手架（esbuild/postject 构建依赖）"
 
 ### Task 2: license.js 密钥模块（TDD）
 
-密钥格式：`DKC-XXXX-XXXX-XXXX-XXXX`。前 3 组为 payload（60 bits：version 2b + issueDay 16b + validDays 6b + clientTagHash 16b + 保留 20b），第 4 组为 HMAC-SHA256 截断（前 20 bits）。字母表 32 字符去混淆：`23456789ABCDEFGHJKLMNPQRSTUVWXYZ`。issueDay = 自 2026-01-01 起的天数。
+密钥格式：`DKC-XXXX-XXXX-XXXX-XXXX`。payload（52 bits：version 2b + issueDay 16b + validDays 6b + clientTagHash 16b + 保留 12b，补零至 56 bits = 7 字节）+ HMAC-SHA256 截断签名（前 3 字节）＝ 10 字节 = 80 bits，b32 编码恰好 16 字符 = 4 组 × 4 字符。字母表 32 字符去混淆：`23456789ABCDEFGHJKLMNPQRSTUVWXYZ`。issueDay = 自 2026-01-01 起的天数。注意：packBits 须用 BigInt 实现（JS 位运算 32 位截断，Task 2 实测已修复）。
 
 **Files:**
 - Create: `src/license.js`
@@ -1681,10 +1681,11 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   var MASTER = '__MASTER_KEY__';
 
   function packBits(bits) {
-    var buf = 0, used = 0; var bytes = [];
-    for (var i = 0; i < bits.length; i++) { buf = (buf << bits[i][1]) | bits[i][0]; used += bits[i][1]; }
-    var pad = (8 - (used % 8)) % 8; buf <<= pad; used += pad;
-    for (var j = used - 8; j >= 0; j -= 8) bytes.push((buf >> j) & 0xff);
+    // BigInt 实现：JS 位运算 32 位截断，56 bits 会溢出（Task 2 已实测）
+    var buf = 0n, used = 0; var bytes = [];
+    for (var i = 0; i < bits.length; i++) { buf = (buf << BigInt(bits[i][1])) | BigInt(bits[i][0]); used += bits[i][1]; }
+    var pad = (8 - (used % 8)) % 8; buf <<= BigInt(pad); used += pad;
+    for (var j = used - 8; j >= 0; j -= 8) bytes.push(Number((buf >> BigInt(j)) & 0xffn));
     return bytes;
   }
   function b32encode(bytes) {
