@@ -46,3 +46,35 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
 .prog-fill { height: 10px; background: #0067c0; border-radius: 5px; transition: width .3s cubic-bezier(.4, 0, .2, 1); }
 .sel-line { margin-top: 10px; font-size: 14px; color: #445; }
 .sel-line b { color: #0067c0; }
+
+/* —— v0.2 动效（参数见 spec §6，全部内联自绘）—— */
+.prog-icon path { transform-origin: 12px 12px; animation: dkc-spin 1.2s linear infinite; }
+@keyframes dkc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.dots { display: inline-block; margin-left: 4px; vertical-align: 2px; }
+.dots span { display: inline-block; width: 4px; height: 4px; margin-left: 3px; border-radius: 50%; background: #0067c0; animation: dkc-pulse 1.2s ease-in-out infinite; }
+.dots span:nth-child(2) { animation-delay: .2s; }
+.dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes dkc-pulse { 0%, 100% { opacity: .2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+
+.prog-bar.indeterminate .prog-fill {
+  width: 100% !important;
+  background: linear-gradient(90deg, #cfe3f7 0%, #0067c0 50%, #cfe3f7 100%);
+  background-size: 200% 100%;
+  animation: dkc-shimmer 1.6s linear infinite;
+}
+@keyframes dkc-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+.item { animation: dkc-in .25s ease-out both; }
+@keyframes dkc-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.item.failed .iname { animation: dkc-shake .3s ease-in-out .3s; }
+@keyframes dkc-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+.ck { width: 18px; height: 18px; margin-right: 2px; vertical-align: -4px; }
+.ck path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: dkc-draw .25s ease-out forwards; }
+@keyframes dkc-draw { to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .prog-icon path, .prog-fill, .dots span, .item, .item.failed .iname, .ck path { animation: none !important; transition: none !important; }
+}
