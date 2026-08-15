@@ -1,7 +1,7 @@
 // test/cleaner.test.js
 const test = require('node:test');
 const assert = require('node:assert');
-const { createCleaner } = require('../src/cleaner');
+const { createCleaner, CLEAN_ENTRIES_PS } = require('../src/cleaner');
 const psutil = require('../src/psutil');
 
 function fake({ scriptResults, diag }) {
@@ -74,4 +74,29 @@ Write-Output ('{"error":"' + ($err -replace '"','\\"') + '"}')
   const r = await psutil.runJson('errprobe-old.ps1', probe, {});
   assert.equal(r.ok, false);
   assert.match(r.error, /bad json output/);
+});
+
+test('recycle clean: script uses SHEmptyRecycleBin per-disk, not global Clear-RecycleBin', () => {
+  assert.match(CLEAN_ENTRIES_PS, /SHEmptyRecycleBin/);
+  assert.doesNotMatch(CLEAN_ENTRIES_PS, /Clear-RecycleBin/);
+});
+
+test('recycle clean: disk root passed to PS', async () => {
+  const params = [];
+  const cleaner = createCleaner(fake({ scriptResults: {} }));
+  cleaner._psutil.runJson = async (n, b, p) => { params.push(p); return { ok: true, data: [{ id: 'recycle_bin', ok: true, freed: 100, error: '' }] }; };
+  const res = await cleaner.clean({ disk: 'D:\\', items: ['recycle_bin'] }, () => {}, { retryDelayMs: 0 });
+  assert.equal(res.results[0].ok, true);
+  assert.equal(params[0].disk, 'D:\\');
+});
+
+test('SHEmptyRecycleBin P/Invoke compiles on real PS (integration, no side effect)', async () => {
+  const probe = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class DKC_RB { [DllImport("Shell32.dll", CharSet=CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr hwnd, string root, uint flags); }'
+Write-Output '{"compiled":true}'
+`;
+  const r = await psutil.runJson('rbprobe.ps1', probe, {}, { timeoutMs: 60000 });
+  assert.equal(r.ok, true);
+  assert.equal(r.data[0].compiled, true);
 });

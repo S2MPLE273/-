@@ -20,10 +20,10 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
   }
 
   async function runClean(body) {
-    const items = (body && body.items) || [];
-    const known = new Set(scanner.getItems().map(i => i.id));
-    if (!Array.isArray(items) || !items.length || !items.every(id => known.has(id))) return { status: 400, body: { ok: false, error: 'invalid item id' } };
     const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
+    const items = (body && body.items) || [];
+    const known = new Set(scanner.getItems(disk).map(i => i.id));
+    if (!Array.isArray(items) || !items.length || !items.every(id => known.has(id))) return { status: 400, body: { ok: false, error: 'invalid item id' } };
     try { const r = await cleaner.clean({ disk, items }, () => {}); return { status: 200, body: { ok: true, data: r } }; }
     catch (e) { return { status: 500, body: { ok: false, error: e.message } }; }
   }
@@ -56,7 +56,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     if (req.method === 'POST' && p === '/api/scan') {
       const disk = (body && body.disk) || (process.env.SystemDrive || 'C:') + '\\';
       const taskId = Math.random().toString(36).slice(2, 10);
-      const task = { id: taskId, status: 'running', disk, items: [], spaceDist: [], cursor: 0, progress: { phase: 'items', done: 0, total: scanner.getItems().length, current: [] } };
+      const task = { id: taskId, status: 'running', disk, items: [], spaceDist: [], cursor: 0, progress: { phase: 'items', done: 0, total: scanner.getItems(disk).length, current: [] } };
       tasks.set(taskId, task);
       scanner.scanAll(disk, (item) => { task.items.push(item); task.progress.done = task.items.length; },
         (ph) => { task.progress.phase = ph.phase; task.progress.current = ph.labels || []; })

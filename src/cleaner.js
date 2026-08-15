@@ -26,7 +26,11 @@ foreach($e in $data.entries){
           }
         }
       }
-      'recycle' { Clear-RecycleBin -Force -ErrorAction Stop }
+      'recycle' {
+        Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class DKC_RB { [DllImport("Shell32.dll", CharSet=CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr hwnd, string root, uint flags); }'
+        $rc = [DKC_RB]::SHEmptyRecycleBin([IntPtr]::Zero, $data.disk, 7)
+        if($rc -ne 0){ $ok=$false; $err = 'SHEmptyRecycleBin failed: ' + $rc }
+      }
       'dism' {
         [Console]::OutputEncoding = [Text.Encoding]::Default
         $r = Dism.exe /Online /Cleanup-Image /StartComponentCleanup 2>&1

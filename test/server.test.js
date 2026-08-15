@@ -19,7 +19,7 @@ function req(port, method, p, body, token, headers) {
 function makeServer(opts) {
   opts = opts || {};
   const state = { items: [{ id: 'user_temp', sizeBytes: 1 }, { id: 'win_temp', sizeBytes: 2 }], spaceDist: [] };
-  const scanner = opts.scanner || { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: () => [{ id: 'user_temp' }, { id: 'win_temp' }] };
+  const scanner = opts.scanner || { scanAll: async (disk, onItem, onPhase) => { if (onPhase) onPhase({ phase: 'items', labels: ['用户临时文件'] }); state.items.forEach(onItem); if (onPhase) onPhase({ phase: 'space' }); return state; }, getItems: (disk) => (disk && String(disk).toLowerCase().startsWith('d')) ? [{ id: 'recycle_bin' }] : [{ id: 'user_temp' }, { id: 'win_temp' }] };
   const cleaner = { clean: async () => ({ results: [{ id: 'user_temp', ok: true, freed: 10 }], freedTotal: 10 }) };
   const license = { verify: (k) => k === 'GOODKEY' ? { ok: true } : { ok: false, reason: 'invalid' } };
   const psutil = { getSysInfo: async () => ({ disks: [{ name: 'C:\\', total: 100, free: 40 }], isAdmin: true, machineGuid: 'guid-1', procs: '' }) };
@@ -197,5 +197,24 @@ test('admin license reset calls removeState', async () => {
   assert.equal(r.status, 200);
   assert.equal(r.body.data.reset, true);
   assert.equal(removed, true);
+  srv.close();
+});
+
+test('clean rejects items not applicable to selected disk', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const bad = await req(port, 'POST', '/api/clean', { key: 'GOODKEY', disk: 'D:\\', items: ['user_temp'] }, 'tok');
+  assert.equal(bad.status, 400);
+  const ok = await req(port, 'POST', '/api/clean', { key: 'GOODKEY', disk: 'D:\\', items: ['recycle_bin'] }, 'tok');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.data.freedTotal, 10);
+  srv.close();
+});
+
+test('scan progress total reflects selected disk', async () => {
+  const scanner = { scanAll: async (disk, onItem, onPhase) => ({ items: [], spaceDist: [] }), getItems: (disk) => (String(disk).toLowerCase().startsWith('d') ? [{ id: 'recycle_bin' }] : [{ id: 'user_temp' }, { id: 'win_temp' }]) };
+  const srv = await makeServer({ scanner }); const port = await listen(srv);
+  const started = await req(port, 'POST', '/api/scan', { disk: 'D:\\' }, 'tok');
+  const poll1 = await req(port, 'GET', '/api/scan/' + started.body.data.taskId, null, 'tok');
+  assert.equal(poll1.body.data.progress.total, 1);
   srv.close();
 });
