@@ -9,11 +9,15 @@ const { createCleaner } = require('./cleaner');
 const { createDiagnose } = require('./diagnose');
 const psutil = require('./psutil');
 
+let isSea = false;
+try { isSea = require('node:sea').isSea(); } catch (e) {}
+
 // 构建期由 esbuild define 替换（开发期未定义时走环境变量兜底）
 const MASTER_KEY = typeof __MASTER_KEY__ !== 'undefined' ? __MASTER_KEY__ : '__MASTER_KEY__';
 
 function resolveMasterKey() {
-  if (MASTER_KEY && MASTER_KEY.length === 64 && MASTER_KEY !== '__MASTER_KEY__') return MASTER_KEY;
+  if (MASTER_KEY && MASTER_KEY.length === 64 && /^[0-9a-f]{64}$/i.test(MASTER_KEY)) return MASTER_KEY.toLowerCase();
+  if (isSea) { console.error('FATAL: master key not injected in packaged build'); process.exit(1); }
   return process.env.DKC_MASTER_KEY || 'a'.repeat(64);
 }
 
@@ -24,8 +28,12 @@ function saveState(s) { try { fs.mkdirSync(path.dirname(STATE_FILE), { recursive
 
 async function relaunchAsAdmin() {
   const exe = process.execPath;
-  const script = `Start-Process -FilePath '${exe.replace(/'/g, "''")}' -Verb RunAs`;
-  await new Promise((resolve) => execFile('powershell.exe', ['-NoProfile', '-Command', script], { windowsHide: true }, resolve));
+  const extra = isSea ? '' : (" -ArgumentList '" + path.resolve(process.argv[1]).replace(/'/g, "''") + "'");
+  const script = `Start-Process -FilePath '${exe.replace(/'/g, "''")}'${extra} -Verb RunAs`;
+  await new Promise((resolve) => execFile('powershell.exe', ['-NoProfile', '-Command', script], { windowsHide: true }, (err) => {
+    if (err) { console.error('UAC relaunch failed: ' + err.message); process.exit(1); }
+    resolve();
+  }));
   process.exit(0);
 }
 
