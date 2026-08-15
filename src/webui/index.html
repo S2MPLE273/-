@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>磁盘清理助手</title>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">🧹 磁盘清理助手</div>
+  <div class="tagline">安全 · 透明 · 绿色单文件</div>
+</header>
+<main id="app">
+  <!-- 视图 1: 首页 -->
+  <section id="view-home">
+    <h2>选择要清理的磁盘</h2>
+    <p class="sub">扫描免费，清理需要服务密钥</p>
+    <div id="disk-cards" class="disk-cards"></div>
+    <button id="btn-scan" class="btn-primary" disabled>开始扫描</button>
+  </section>
+  <!-- 视图 2: 扫描中/结果 -->
+  <section id="view-scan" hidden>
+    <div class="scan-head">
+      <h2 id="scan-title">正在扫描…</h2>
+      <div class="big-num" id="total-size">0 B</div>
+      <div class="sub" id="scan-sub">可清理空间（实时累计）</div>
+    </div>
+    <div id="space-dist" class="card" hidden>
+      <h3>空间分布 · 所选盘大目录 Top 10</h3>
+      <div id="dist-bars"></div>
+    </div>
+    <div id="item-list" class="card"></div>
+    <div class="license-box card" id="license-box">
+      <h3>清理授权</h3>
+      <p class="sub">输入服务密钥解锁清理（有效期内可反复使用）</p>
+      <div class="row">
+        <input id="key-input" placeholder="DKC-XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+        <button id="btn-verify" class="btn-primary">验证密钥</button>
+      </div>
+      <div id="key-status" class="sub"></div>
+    </div>
+    <button id="btn-clean" class="btn-primary" disabled>开始清理</button>
+    <div id="clean-progress" class="sub"></div>
+  </section>
+  <!-- 视图 3: 完成 -->
+  <section id="view-done" hidden>
+    <h2>清理完成</h2>
+    <div class="big-num" id="done-freed">0 B</div>
+    <div class="sub">实际释放空间（所选盘差值）</div>
+    <div id="done-list"></div>
+    <button id="btn-again" class="btn-secondary">切换磁盘</button>
+  </section>
+</main>
+<footer>DiskClean Agent v0.1 · 本地运行 · 数据不出本机</footer>
+</body>
+</html>
