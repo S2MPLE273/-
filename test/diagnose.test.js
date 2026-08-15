@@ -12,6 +12,11 @@ test('classifyError: locked', () => {
   assert.equal(classifyError({ code: 32, stderr: '' }), 'file_locked');
   assert.equal(classifyError({ code: 1, stderr: 'being used by another process' }), 'file_locked');
 });
+test('classifyError: localized Chinese stderr (zh-CN Windows)', () => {
+  assert.equal(classifyError({ code: 1, stderr: '拒绝访问。' }), 'access_denied');
+  assert.equal(classifyError({ code: 1, stderr: '另一个程序正在使用此文件，进程无法访问。' }), 'file_locked');
+  assert.equal(classifyError({ code: 1, stderr: '文件被占用' }), 'file_locked');
+});
 test('classifyError: timeout/unknown', () => {
   assert.equal(classifyError({ code: 1, stderr: '', timedOut: true }), 'timeout');
   assert.equal(classifyError({ code: 2, stderr: 'x' }), 'unknown');

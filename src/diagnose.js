@@ -14,8 +14,8 @@ const SECURITY_SOFT = [
 function classifyError({ code = 0, stderr = '', timedOut = false }) {
   const s = String(stderr || '').toLowerCase();
   if (timedOut) return 'timeout';
-  if (code === 5 || s.includes('0x80070005') || s.includes('access is denied') || s.includes('denied') || s.includes('refused')) return 'access_denied';
-  if (code === 32 || s.includes('0x80070020') || s.includes('being used') || s.includes('in use') || s.includes('lock')) return 'file_locked';
+  if (code === 5 || s.includes('0x80070005') || s.includes('access is denied') || s.includes('denied') || s.includes('refused') || s.includes('拒绝')) return 'access_denied';
+  if (code === 32 || s.includes('0x80070020') || s.includes('being used') || s.includes('in use') || s.includes('lock') || s.includes('占用') || s.includes('正在使用')) return 'file_locked';
   return 'unknown';
 }
 
