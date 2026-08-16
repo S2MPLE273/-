@@ -52,7 +52,7 @@ v2: [[1,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6
 
 - 存储：`localStorage` key `dkcKeygenHistory`，值为 `[{key, tag, validDays, issueTime}]`
   - `issueTime` 存**分钟取整后**的签发时刻（与密钥内嵌时刻一致，保证剩余时间计算与 exe 完全一致）
-  - 生成成功时自动追加；不做去重（两次生成必然是两个密钥）
+  - 生成成功时自动追加；不做去重（同一分钟内同参数重复生成会产生相同密钥，可手工删除重复条目）
 - **有效期内分区**（按到期时间升序）：
   - 每行：客户备注 | 密钥（等宽字体）| 剩余时间（≥1 小时显示"X天X小时"，<1 小时显示"不足 1 小时"；另附"至 X月X日 HH:MM"）| 复制按钮 | ✕单条删除（防填错备注）
   - 剩余时间公式与 license.js verify 完全一致（交叉测试保证）

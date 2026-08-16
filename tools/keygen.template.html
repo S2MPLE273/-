@@ -36,7 +36,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   <div class="card">
     <h1>🔒 管理密码</h1>
     <div class="sub">本页内含主密钥，仅限服务方使用</div>
-    <input id="pw" type="password" placeholder="请输入管理密码">
+    <input id="pw" type="password" placeholder="请输入管理密码" onkeydown="if(event.key==='Enter')tryUnlock()">
     <button onclick="tryUnlock()">解锁</button>
     <div id="pw-msg" class="pw-msg">密码错误</div>
   </div>
@@ -191,7 +191,7 @@ var GATE_KEY = 'dkcKeygenUnlocked';
 function hist() {
   try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { return []; }
 }
-function histSave(list) { localStorage.setItem(HIST_KEY, JSON.stringify(list)); }
+function histSave(list) { try { localStorage.setItem(HIST_KEY, JSON.stringify(list)); } catch (e) {} }
 
 function fmtDT(ts) {
   var d = new Date(ts);
@@ -221,10 +221,10 @@ function renderHistory() {
     div.className = 'row';
     var expTs = it.issueTime + it.validDays * 86400000;
     div.innerHTML = '<div class="ktag">' + esc(it.tag || '（无备注）') + '</div>' +
-      '<div class="kkey">' + it.key + '</div>' +
+      '<div class="kkey">' + esc(it.key) + '</div>' +
       '<div class="krem">剩余 ' + fmtRem(row.rem) + '（至 ' + fmtDT(expTs) + '）</div>' +
-      '<button class="mini" data-copy="' + it.key + '">复制</button>' +
-      '<button class="mini danger" data-del="' + it.key + '">✕</button>';
+      '<button class="mini" data-copy="' + esc(it.key) + '">复制</button>' +
+      '<button class="mini danger" data-del="' + esc(it.key) + '">✕</button>';
     actBox.appendChild(div);
   }
   var expBox = document.getElementById('hist-expired');
@@ -233,7 +233,7 @@ function renderHistory() {
     var it2 = exp[k].e;
     var div2 = document.createElement('div');
     div2.className = 'row';
-    div2.innerHTML = '<div class="ktag">' + esc(it2.tag || '（无备注）') + '</div><div class="kkey">' + it2.key + '</div>';
+    div2.innerHTML = '<div class="ktag">' + esc(it2.tag || '（无备注）') + '</div><div class="kkey">' + esc(it2.key) + '</div>';
     expBox.appendChild(div2);
   }
   document.getElementById('hist-expired-box').hidden = exp.length === 0;
@@ -248,9 +248,14 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function copyText(text, btn) {
-  if (navigator.clipboard) { navigator.clipboard.writeText(text); }
-  else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
-  if (btn) { var old = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(function () { btn.textContent = old; }, 1500); }
+  function fallback() {
+    var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  function done() {
+    if (btn) { var old = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(function () { btn.textContent = old; }, 1500); }
+  }
+  if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done).catch(function () { fallback(); done(); }); }
+  else { fallback(); done(); }
 }
 function clearExpired() {
   var now = Date.now();
