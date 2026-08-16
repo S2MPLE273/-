@@ -21,6 +21,11 @@
     while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
     return v.toFixed(v >= 100 ? 0 : 1) + ' ' + u[i];
   }
+  function fmtWhen(remainingMs) {
+    const d = new Date(Date.now() + remainingMs);
+    const p = n => String(n).padStart(2, '0');
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
   async function api(method, path, body, headers) {
     try {
       const r = await fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + TOKEN, {
@@ -210,7 +215,7 @@
     const el = $('key-status');
     if (r.data && r.data.ok) {
       state.verified = true; state.key = key;
-      el.textContent = '密钥有效 ✓ 可反复使用' + (r.data.remainingMs ? '（剩余 ' + Math.max(1, Math.ceil(r.data.remainingMs / 3600000)) + ' 小时）' : '');
+      el.textContent = '密钥有效 ✓ 可反复使用（有效期至 ' + fmtWhen(r.data.remainingMs) + '）';
       el.className = 'sub ok';
       updateCleanButton();
     } else {
