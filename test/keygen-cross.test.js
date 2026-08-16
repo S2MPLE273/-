@@ -81,6 +81,8 @@ test('keygen password hash constant matches SHA-256 of the password', () => {
   const algo = makeApi(MASTER);
   assert.equal(algo.sha256HexText('Hjh20050613'), '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
   assert.notEqual(algo.sha256HexText('Hjh20050614'), '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
+  assert.equal(algo.PASS_HASH, '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
+  assert.ok(typeof algo.PASS_HASH === 'string');
 });
 
 test('master key guard: injected template ok, raw template flagged', () => {

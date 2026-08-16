@@ -15,11 +15,36 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
 #key{font-size:16px;font-weight:700;letter-spacing:1px;color:#0067c0;word-break:break-all;font-family:Consolas,monospace}
 #copy{margin-top:10px;background:#fff;color:#0067c0;border:1px solid #0067c0}
 .note{font-size:11px;color:#aab;margin-top:16px}
+#gate{position:fixed;inset:0;background:#f5f7fa;display:flex;justify-content:center;align-items:center;z-index:99}
+#gate .card{width:340px}
+.pw-msg{font-size:13px;color:#c0392b;margin-top:10px;display:none}
+.guard-err{background:#fdecea;border:1px solid #f5b7b1;color:#a93226;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px}
+.h{font-size:15px;color:#445;margin:22px 0 8px}
+#hist-active .row,#hist-expired .row{display:flex;align-items:center;gap:8px;background:#fafbfc;border:1px solid #e3e8ee;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px}
+#hist-active .ktag{color:#0067c0;font-weight:600;min-width:96px}
+#hist-active .kkey{font-family:Consolas,monospace;font-size:12px;color:#334;flex:1;word-break:break-all}
+#hist-active .krem{color:#2e9e5b;white-space:nowrap}
+#hist-expired .row{opacity:.55}
+#hist-expired .kkey{font-family:Consolas,monospace;font-size:12px;flex:1;word-break:break-all}
+.mini{background:#fff;border:1px solid #ccd;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer}
+.danger{background:#fff;color:#a93226;border-color:#f5b7b1}
+.note2{font-size:11px;color:#889;margin-top:4px}
 </style>
 </head>
 <body>
+<div id="gate">
+  <div class="card">
+    <h1>🔒 管理密码</h1>
+    <div class="sub">本页内含主密钥，仅限服务方使用</div>
+    <input id="pw" type="password" placeholder="请输入管理密码">
+    <button onclick="tryUnlock()">解锁</button>
+    <div id="pw-msg">密码错误</div>
+  </div>
+</div>
+<div id="guard-err" hidden>⚠ 此页面未注入主密钥（勿直接打开模板文件），请使用构建产物 dist/keygen.html</div>
 <div class="card">
   <h1>🧹 DiskClean 密钥生成器</h1>
+  <div class="sub">主密钥指纹：<b id="fp">-</b>（与程序管理面板指纹一致即为同步）</div>
   <div class="sub">仅供服务方使用 · 请勿外传本页面（内含主密钥）</div>
   <label>客户备注（便于辨认，不会显示给客户）</label>
   <input id="tag" placeholder="如：王先生-联想笔记本">
@@ -31,11 +56,15 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
     <option value="7">7 天</option>
     <option value="30">30 天</option>
   </select>
-  <button onclick="doGen()">生成密钥</button>
+  <div class="note2">1 天 = 生成时刻起整 24 小时（精确到分钟）</div>
+  <button id="gen" onclick="doGen()">生成密钥</button>
   <div id="out">
     <div id="key"></div>
     <button id="copy" onclick="copyKey()">复制密钥</button>
   </div>
+  <div class="h">历史密钥（本机浏览器存储）</div>
+  <div id="hist-active"></div>
+  <details id="hist-expired-box" hidden><summary style="font-size:12px;color:#889;cursor:pointer">已过期密钥</summary><div id="hist-expired"></div><button class="mini danger" onclick="clearExpired()">清空过期记录</button></details>
   <div class="note">密钥在有效期内可反复使用；绑定首次使用的电脑（单机），过期后需重新生成。</div>
 </div>
 
@@ -149,23 +178,122 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
     sha256HexText: sha256HexText,
     remainingMs: remainingMs,
     masterOk: masterOk,
-    fingerprint: masterOk ? MASTER.slice(0, 8) : ''
+    fingerprint: masterOk ? MASTER.slice(0, 8) : '',
+    PASS_HASH: PASS_HASH
   };
 })();
 </script>
 
 <script>
+var HIST_KEY = 'dkcKeygenHistory';
+var GATE_KEY = 'dkcKeygenUnlocked';
+
+function hist() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { return []; }
+}
+function histSave(list) { localStorage.setItem(HIST_KEY, JSON.stringify(list)); }
+
+function fmtDT(ts) {
+  var d = new Date(ts);
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+}
+function fmtRem(ms) {
+  if (ms <= 0) return '已过期';
+  if (ms < 3600000) return '不足 1 小时';
+  var days = Math.floor(ms / 86400000), hours = Math.floor((ms % 86400000) / 3600000);
+  return (days > 0 ? days + '天' : '') + (hours > 0 || days === 0 ? hours + '小时' : '');
+}
+
+function renderHistory() {
+  var list = hist();
+  var now = Date.now();
+  var act = [], exp = [];
+  for (var i = 0; i < list.length; i++) {
+    var rem = window.dkcAlgo.remainingMs(list[i].issueTime, list[i].validDays, now);
+    (rem > 0 ? act : exp).push({ e: list[i], rem: rem });
+  }
+  act.sort(function (a, b) { return a.rem - b.rem; });
+  var actBox = document.getElementById('hist-active');
+  actBox.innerHTML = '';
+  for (var j = 0; j < act.length; j++) {
+    var row = act[j], it = row.e;
+    var div = document.createElement('div');
+    div.className = 'row';
+    var expTs = it.issueTime + it.validDays * 86400000;
+    div.innerHTML = '<div class="ktag">' + esc(it.tag || '（无备注）') + '</div>' +
+      '<div class="kkey">' + it.key + '</div>' +
+      '<div class="krem">剩余 ' + fmtRem(row.rem) + '（至 ' + fmtDT(expTs) + '）</div>' +
+      '<button class="mini" data-copy="' + it.key + '">复制</button>' +
+      '<button class="mini danger" data-del="' + it.key + '">✕</button>';
+    actBox.appendChild(div);
+  }
+  var expBox = document.getElementById('hist-expired');
+  expBox.innerHTML = '';
+  for (var k = 0; k < exp.length; k++) {
+    var it2 = exp[k].e;
+    var div2 = document.createElement('div');
+    div2.className = 'row';
+    div2.innerHTML = '<div class="ktag">' + esc(it2.tag || '（无备注）') + '</div><div class="kkey">' + it2.key + '</div>';
+    expBox.appendChild(div2);
+  }
+  document.getElementById('hist-expired-box').hidden = exp.length === 0;
+  actBox.onclick = function (ev) {
+    var t = ev.target;
+    if (t.dataset.copy) copyText(t.dataset.copy, t);
+    if (t.dataset.del) { histSave(hist().filter(function (x) { return x.key !== t.dataset.del; })); renderHistory(); }
+  };
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function copyText(text, btn) {
+  if (navigator.clipboard) { navigator.clipboard.writeText(text); }
+  else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  if (btn) { var old = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(function () { btn.textContent = old; }, 1500); }
+}
+function clearExpired() {
+  var now = Date.now();
+  histSave(hist().filter(function (x) { return window.dkcAlgo.remainingMs(x.issueTime, x.validDays, now) > 0; }));
+  renderHistory();
+}
+
 function doGen() {
-  var key = window.dkcAlgo.generate({ clientTag: document.getElementById('tag').value, validDays: parseInt(document.getElementById('days').value, 10) });
+  var tag = document.getElementById('tag').value;
+  var days = parseInt(document.getElementById('days').value, 10);
+  var t = Math.floor(Date.now() / 60000) * 60000; // 与密钥内嵌时刻一致
+  var key = window.dkcAlgo.generate({ clientTag: tag, validDays: days, issueTime: t });
   document.getElementById('key').textContent = key;
   document.getElementById('out').style.display = 'block';
+  histSave(hist().concat([{ key: key, tag: tag, validDays: Math.max(1, Math.min(63, days || 1)), issueTime: t }]));
+  renderHistory();
 }
-function copyKey() {
-  var k = document.getElementById('key').textContent;
-  if (navigator.clipboard) { navigator.clipboard.writeText(k); }
-  else { var ta = document.createElement('textarea'); ta.value = k; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
-  document.getElementById('copy').textContent = '已复制 ✓';
+function copyKey() { copyText(document.getElementById('key').textContent, document.getElementById('copy')); }
+
+function tryUnlock() {
+  var input = document.getElementById('pw').value;
+  if (window.dkcAlgo.sha256HexText(input) === window.dkcAlgo.PASS_HASH) {
+    try { sessionStorage.setItem(GATE_KEY, '1'); } catch (e) {}
+    document.getElementById('gate').style.display = 'none';
+  } else {
+    document.getElementById('pw-msg').style.display = 'block';
+    document.getElementById('pw').value = '';
+  }
 }
+
+(function init() {
+  if (window.dkcAlgo.masterOk) {
+    document.getElementById('fp').textContent = window.dkcAlgo.fingerprint;
+  } else {
+    document.getElementById('guard-err').hidden = false;
+    document.getElementById('fp').textContent = '无效';
+    document.getElementById('gen').disabled = true;
+  }
+  var unlocked = false;
+  try { unlocked = sessionStorage.getItem(GATE_KEY) === '1'; } catch (e) {}
+  if (unlocked) { document.getElementById('gate').style.display = 'none'; }
+  renderHistory();
+})();
 </script>
 </body>
 </html>
