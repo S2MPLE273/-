@@ -97,6 +97,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   var EPOCH = Date.UTC(2026, 0, 1);
   var DAY_MS = 86400000;
   var MASTER = '__MASTER_KEY__';
+  var PASS_HASH = '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d';
 
   function packBits(bits) {
     // BigInt 实现：JS 位运算 32 位截断，56 bits 会溢出（Task 2 已实测）
@@ -120,17 +121,36 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   }
   function generate(opts) {
     opts = opts || {};
-    var issueTime = opts.issueTime || Date.now();
+    var issueTime = Math.floor((opts.issueTime || Date.now()) / 60000) * 60000; // 分钟取整，与 license.js 一致
     var validDays = Math.max(1, Math.min(63, Math.floor(opts.validDays || 1)));
     var issueDay = Math.floor((issueTime - EPOCH) / DAY_MS);
-    var payload = packBits([[1, 2], [issueDay, 16], [validDays, 6], [tagHash(opts.clientTag || ''), 16], [0, 12]]);
+    var withinDay = (issueTime - EPOCH) % DAY_MS;
+    var issueHour = Math.floor(withinDay / 3600000);
+    var issueMinute = Math.floor((withinDay % 3600000) / 60000);
+    var payload = packBits([[2, 2], [issueDay, 16], [validDays, 6], [tagHash(opts.clientTag || ''), 16], [issueHour, 5], [issueMinute, 6], [0, 1]]);
     var sig = hmacSha256(MASTER, new Uint8Array(payload)).slice(0, 3);
     var full = payload.concat(Array.prototype.slice.call(sig)); // Uint8Array 转普通数组再拼接
     var body = b32encode(full);
     var b16 = body.slice(0, 16);
     return 'DKC-' + b16.slice(0, 4) + '-' + b16.slice(4, 8) + '-' + b16.slice(8, 12) + '-' + b16.slice(12, 16);
   }
-  (typeof window !== 'undefined' ? window : globalThis).dkcAlgo = { generate: generate };
+  function sha256HexText(str) {
+    var d = sha256(new TextEncoder().encode(String(str)));
+    var s = '';
+    for (var i = 0; i < d.length; i++) s += ('0' + d[i].toString(16)).slice(-2);
+    return s;
+  }
+  function remainingMs(issueTime, validDays, now) {
+    return issueTime + validDays * DAY_MS - (now || Date.now());
+  }
+  var masterOk = /^[0-9a-f]{64}$/.test(MASTER);
+  (typeof window !== 'undefined' ? window : globalThis).dkcAlgo = {
+    generate: generate,
+    sha256HexText: sha256HexText,
+    remainingMs: remainingMs,
+    masterOk: masterOk,
+    fingerprint: masterOk ? MASTER.slice(0, 8) : ''
+  };
 })();
 </script>
 
