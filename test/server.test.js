@@ -23,13 +23,25 @@ function makeServer(opts) {
   const cleaner = { clean: async () => ({ results: [{ id: 'user_temp', ok: true, freed: 10 }], freedTotal: 10 }) };
   const license = { verify: (k) => k === 'GOODKEY' ? { ok: true } : { ok: false, reason: 'invalid' } };
   const psutil = { getSysInfo: async () => ({ disks: [{ name: 'C:\\', total: 100, free: 40 }], isAdmin: true, machineGuid: 'guid-1', procs: '' }) };
-  return createServer({ port: 0, token: 'tok', webui: { html: '<h1>hi</h1>', css: '', js: '' }, license, scanner, cleaner, psutil, machineGuid: 'guid-1', loadState: () => ({ entries: {} }), saveState: () => {}, masterKey: opts.masterKey || '', removeState: opts.removeState || (() => {}), version: '9.9.9' });
+  return createServer({ port: 0, token: 'tok', webui: { html: '<html><head></head><body><h1>hi</h1></body></html>', css: '', fx: 'FXCONTENT', js: 'APPJSCONTENT' }, license, scanner, cleaner, psutil, machineGuid: 'guid-1', loadState: () => ({ entries: {} }), saveState: () => {}, masterKey: opts.masterKey || '', removeState: opts.removeState || (() => {}), version: '9.9.9' });
 }
 
 test('rejects requests without token', async () => {
   const srv = await makeServer(); const port = await listen(srv);
   const r = await req(port, 'GET', '/api/overview');
   assert.equal(r.status, 403);
+  srv.close();
+});
+
+test('home page embeds fx script before app.js', async () => {
+  const srv = await makeServer(); const port = await listen(srv);
+  const html = await new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '/?token=tok', headers: { Connection: 'close' } }, res => {
+      let b = ''; res.on('data', c => b += c); res.on('end', () => resolve(b));
+    }).on('error', reject);
+  });
+  assert.ok(html.includes('FXCONTENT'), 'fx script embedded');
+  assert.ok(html.indexOf('FXCONTENT') < html.indexOf('APPJSCONTENT'), 'fx loads before app.js');
   srv.close();
 });
 

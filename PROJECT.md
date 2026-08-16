@@ -12,7 +12,15 @@
 
 ## 2. 当前阶段
 
-**v0.2.5：时钟容差收紧为 4h + lastSeen 回拨容差 1h + 时间异常文案拆分（2026-08-17，独立审查后修复）。**
+**v0.3.0：扫描进度视觉优化（平滑走条 + 卡 99% 轮换文案 + 已用时计时）（2026-08-17）。**
+
+- 进度条改为"视觉缓动"：真实进度（条目+空间分布阶段加权）作为目标值，视觉进度以指数缓动追随；真实进度停住时（如空间分布大目录遍历数分钟）视觉进度以 0.4%/秒缓慢爬升，**封顶 99%**（条只前进不后退），完成后进度卡收起、标题显示总用时
+- 卡 99% 或真实进度超过 8 秒不动时，主行轮换显示趣味文案（14 条拟人+段子混搭，含"小胡同学正在跟 cc 交涉"），每 8 秒换一条；正常阶段保留"正在扫描：项目名"原显示
+- 进度卡新增"已用时 mm:ss"计时（超 1 小时 h:mm:ss）；meta 显示 min(真实%, 99) 与条一致；后台标签页节流时按实测 tick 步长爬行
+- 新增 `src/webui/progressfx.js`（浏览器/Node 双兼容纯函数：stepVisual/nextQuip/fmtElapsed），webui 组装加 fx 脚本（build.js/main.js/server.js）；87/87 测试全绿（新增 8 个 progressfx + HTML 组装用例）
+- 工作流改进：分支+PR 合回 main（feat/smooth-progress），中文简洁提交信息
+
+v0.2.5：时钟容差收紧为 4h + lastSeen 回拨容差 1h + 时间异常文案拆分（2026-08-17，独立审查后修复）。
 
 - v0.2.4 的 24h 容差经独立代码审查指出代价：恶意客户首次使用时拨慢时钟（容差内），1 天密钥实际可用约 2 天。服务方拍板收紧为 **4h**（"一般误差不会那么大"）；超出容差返回新 reason `not_yet_valid`（"密钥尚未生效"），与"时间回拨"（`clock_rollback`，保留给 lastSeen 检查）拆分为两种提示。
 - lastSeen 回拨防护加 **1h 容差**：吸收"时钟先快后被 NTP 校正回调"造成的假拒绝（审查发现，与本次修复同源的反向问题）；超出 1h 仍判回拨。
@@ -49,7 +57,7 @@ v0.2.3 修复：回收站清理必失败（SHEmptyRecycleBin 在提权进程返�
 - **本地 HTTP 服务**（127.0.0.1 随机端口 + 96-bit 随机 token 于 URL 查询参数）→ 浏览器 Web UI（原生 HTML/CSS/JS，构建时内嵌进 bundle）
 - **PowerShell 子进程**执行全部系统操作（扫描/清理/诊断），参数 Base64 JSON 传递
 - **密钥**：HMAC-SHA256 离线验证 + 可选设备绑定（v3 密钥烙入 MachineGuid 哈希）+ 本机状态绑定 + 时间回拨防护（1h 校时回调容差）+ 4h 签发时钟容差，状态存 `%ProgramData%\DiskCleanAgent\license.dat`
-- **扫描进度**：scanAll 的 onPhase 回调（items 批次/空间分布/特殊项三阶段）→ task.progress → GET /api/scan/:id 增量返回；UI 进度卡（确定式 0→100，条目+空间分布阶段加权）；扫描/清理项按所选盘过滤（非系统盘仅回收站·本盘）
+- **扫描进度**：scanAll 的 onPhase 回调（items 批次/空间分布/特殊项三阶段）→ task.progress → GET /api/scan/:id 增量返回；UI 进度卡（真实进度加权 + 视觉缓动封顶 99% + 卡 99% 轮换趣味文案 + 已用时计时，progressfx.js 纯函数）；扫描/清理项按所选盘过滤（非系统盘仅回收站·本盘）
 - **管理员接口**：`X-Admin-Key` 头（64 hex 主密钥，timingSafeEqual）→ `/api/admin/status|clean|license/reset`（状态查看/免密钥清理/授权重置）；UI 页脚"服务方入口"管理面板（主密钥仅存 sessionStorage）
 - **失败诊断**：错误分类 + 安全软件进程检测（火绒/360/管家/毒霸/Defender）→ 针对性建议卡片 + 单项目重试
 
@@ -65,7 +73,7 @@ DiskCleanAgent/
 │   ├── scanner.js       # 17 项扫描清单 + 并行分批 + 空间分布 Top10（.NET 栈遍历 PS）
 │   ├── cleaner.js       # 串行清理 + 失败重试 1 次 + 诊断联动 + 差值统计
 │   ├── diagnose.js      # 错误分类（含中文关键词）+ 安全软件表 + 建议文案
-│   ├── webui/           # index.html / style.css / app.js（checkbox 分级勾选版）
+│   ├── webui/           # index.html / style.css / app.js（checkbox 分级勾选版）/ progressfx.js（进度视觉纯函数）
 │   └── webui-inline.js  # 构建产物（gitignored）：webui 内嵌为 JS 字符串模块
 ├── tools/
 │   ├── build.js         # SEA 打包流水线（主密钥注入、正向断言、fuse 校验、keygen 成品）
@@ -110,7 +118,7 @@ DiskCleanAgent/
 - 跨设备"密钥已被使用"离线不可检测（license.dat 是本机状态）——需严格单设备时必须签发时填写设备码；密钥签发机时钟不准（慢于真实时间）会导致密钥提前过期（容差只放宽生效侧、不放宽到期侧）；4h 生效容差意味着恶意客户首次使用时拨慢时钟最多可多获得约 4h 使用时间（审查已知、服务方接受）
 - 管理员接口权限等价于持有主密钥：能逆向提取 exe 内主密钥者获得同等管理权限（与 keygen.html 同级，离线方案固有风险）；客户正常流程不受影响（无 admin 头一律 401）
 - Edge/Chrome 缓存只扫 `User Data\Default` 单一 profile
-- 浏览器 UI 未做自动化测试（API 层已集成验证；真实点击流程待人工验收）
+- 浏览器 UI 交互未做自动化测试（progressfx 进度/文案/计时纯函数已有单测；DOM 绑定与真实点击流程待人工验收）
 - keygen 历史记录存于生成密钥的那台电脑的浏览器 localStorage：换电脑/换浏览器/清浏览器数据会丢；管理密码仅防非技术性"顺手打开"（主密钥仍在文件中，技术人员可提取）
 - keygen 需输入管理密码解锁（密码仅以 SHA-256 哈希存于文件）；改密码需重算哈希替换模板常量后重新构建
 
@@ -126,9 +134,11 @@ DiskCleanAgent/
 8. 诊断建议多安全软件全量展示（数据已支持，UI 只展示第一条）
 9. 完成页 retry 按钮对 `retryable:false` 的尊重（当前所有失败项都显示重试）
 10. 清理过程逐项进度展示（当前 /api/clean 同步无进度反馈，扫描已解决）
+11. v0.3.0 审查遗留（Minor）：waiting 判定与文案节奏检查提取为 progressfx 纯函数并补测试；space 阶段"约需 1–3 分钟"提示可融入首个轮换文案
 
 ## 10. 里程碑提交
 
+- v0.3.0（2026-08-17）：扫描进度视觉优化（平滑走条封顶 99% + 轮换趣味文案 + 已用时计时）
 - v0.2.5（2026-08-17）：时钟容差 24h→4h + lastSeen 回拨容差 1h + not_yet_valid/clock_rollback 文案拆分（独立审查后修复）
 - v0.2.4（2026-08-16）：密钥验证时钟容差（修复时钟偏差误判）+ 可选设备绑定 v3（keygen 设备码 + 客户界面设备码）
 - `4720a93`/`6b133ed` v0.2.3：回收站清理修复（提权 E_UNEXPECTED 取证 → dir 直删所选盘）+ 失败项原始错误显示

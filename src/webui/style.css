@@ -45,6 +45,7 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
 .prog-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .prog-icon { width: 26px; height: 26px; flex-shrink: 0; }
 .prog-current { font-size: 14px; margin-bottom: 2px; }
+.prog-timer { margin-top: 2px; color: #99a; font-variant-numeric: tabular-nums; }
 .prog-bar { height: 10px; background: #eef2f6; border-radius: 5px; overflow: hidden; position: relative; }
 .prog-fill { height: 10px; background: #0067c0; border-radius: 5px; transition: width .3s cubic-bezier(.4, 0, .2, 1); }
 .sel-line { margin-top: 10px; font-size: 14px; color: #445; }

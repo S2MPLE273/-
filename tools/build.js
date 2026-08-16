@@ -26,7 +26,7 @@ function ensureMasterKey() {
 
 function buildWebuiInline() {
   const read = (f) => fs.readFileSync(path.join(ROOT, 'src', 'webui', f), 'utf8');
-  const js = `module.exports = ${JSON.stringify({ html: read('index.html'), css: read('style.css'), js: read('app.js') })};\n`;
+  const js = `module.exports = ${JSON.stringify({ html: read('index.html'), css: read('style.css'), fx: read('progressfx.js'), js: read('app.js') })};\n`;
   fs.writeFileSync(path.join(ROOT, 'src', 'webui-inline.js'), js);
 }
 

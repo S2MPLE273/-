@@ -50,7 +50,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
     if (req.method === 'GET' && p === '/') {
       const html = webui.html
         .replace('</head>', '<style>' + webui.css + '</style></head>')
-        .replace('</body>', '<script>' + webui.js + '</script></body>');
+        .replace('</body>', '<script>' + (webui.fx || '') + '</script><script>' + webui.js + '</script></body>');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(html);
     }
