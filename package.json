@@ -1,6 +1,6 @@
 {
   "name": "diskclean-agent",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "description": "Green single-exe disk cleaner with offline license key",
   "scripts": {

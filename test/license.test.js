@@ -77,22 +77,36 @@ test('machine binding: different machine rejected', () => {
   assert.equal(r2.reason, 'machine_mismatch');
 });
 
-test('clock rollback rejected', () => {
+test('clock rollback (lastSeen): within 1h tolerance ok, beyond rejected', () => {
   const key = lic.generate({ validDays: 2, issueTime: Date.UTC(2026, 7, 15) });
   const state = { save: (s) => { Object.assign(state, s); } };
   lic.verify(key, { now: () => Date.UTC(2026, 7, 16, 10), machineGuid: 'M1', state });
-  const r = lic.verify(key, { now: () => Date.UTC(2026, 7, 16, 9), machineGuid: 'M1', state });
+  assert.equal(lic.verify(key, { now: () => Date.UTC(2026, 7, 16, 9, 1), machineGuid: 'M1', state }).ok, true, '59min rollback tolerated');
+  const r = lic.verify(key, { now: () => Date.UTC(2026, 7, 16, 8), machineGuid: 'M1', state });
   assert.equal(r.ok, false);
   assert.equal(r.reason, 'clock_rollback');
 });
 
-test('skew grace: key valid up to 24h before issueMs, rejected beyond', () => {
+test('skew grace: key valid up to 4h before issueMs, rejected beyond', () => {
   const T = Date.UTC(2026, 7, 15, 12, 0);
   const key = lic.generate({ validDays: 1, issueTime: T });
-  assert.equal(lic.verify(key, { now: () => T - 23 * 3600000 - 59 * 60000 }).ok, true, '23h59m before issue still ok');
-  const r = lic.verify(key, { now: () => T - 24 * 3600000 - 60000 });
+  assert.equal(lic.verify(key, { now: () => T - 4 * 3600000 }).ok, true, 'exactly 4h before issue ok (boundary)');
+  assert.equal(lic.verify(key, { now: () => T - 3 * 3600000 - 59 * 60000 }).ok, true, '3h59m before issue ok');
+  const r = lic.verify(key, { now: () => T - 4 * 3600000 - 60000 });
   assert.equal(r.ok, false);
-  assert.equal(r.reason, 'clock_rollback');
+  assert.equal(r.reason, 'not_yet_valid');
+});
+
+test('v3 key with tagHash 0 is still enforced (no silent unbound fallback)', () => {
+  const key = mkKeyRaw([[3, 2], [226, 16], [1, 6], [0, 16], [13, 5], [45, 6], [0, 1]]);
+  const r = lic.verify(key, { now: () => Date.UTC(2026, 7, 15, 14), machineGuid: 'ffffffff-ffff-ffff-ffff-ffffffffffff' });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'machine_mismatch');
+});
+
+test('generate rejects malformed deviceCode (not 32 hex after normalization)', () => {
+  assert.throws(() => lic.generate({ deviceCode: 'abc', validDays: 1, issueTime: Date.UTC(2026, 7, 15) }), /device code/i);
+  assert.throws(() => lic.generate({ deviceCode: 'A1B2C3D4E5F67890ABCDEF1234567890AB', validDays: 1, issueTime: Date.UTC(2026, 7, 15) }), /device code/i);
 });
 
 test('device-bound key: matching device ok, other device machine_mismatch', () => {

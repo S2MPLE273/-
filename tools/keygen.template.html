@@ -287,6 +287,7 @@ function doGen() {
     return;
   }
   var t = Math.floor(Date.now() / 60000) * 60000; // 与密钥内嵌时刻一致
+  document.getElementById('nowtime').textContent = fmtDT(Date.now()); // 跨天打开时刷新
   var key = window.dkcAlgo.generate({ deviceCode: dev, validDays: days, issueTime: t });
   document.getElementById('key').textContent = key;
   document.getElementById('out').style.display = 'block';
