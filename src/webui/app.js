@@ -263,7 +263,7 @@
     (r.data.results || []).forEach((res, idx) => {
       const div = document.createElement('div');
       div.className = 'item' + (res.ok ? '' : ' failed');
-      div.innerHTML = '<div style="flex:1"><div class="iname">' + (res.ok ? '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#2e9e5b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '✗ ') + res.id + '</div>' + (res.diagnosis ? '<div class="diag">' + res.diagnosis.suggestion + '</div>' : (res.error ? '<div class="imeta">' + res.error + '</div>' : '')) + '</div><div>' + (res.ok ? fmt(res.freed) : '<button class="retry-btn" data-id="' + res.id + '">重试此项目</button>') + '</div>';
+      div.innerHTML = '<div style="flex:1"><div class="iname">' + (res.ok ? '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#2e9e5b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '✗ ') + res.id + '</div>' + (res.diagnosis ? '<div class="diag">' + res.diagnosis.suggestion + '</div>' : '') + (res.error ? '<div class="imeta">' + res.error + '</div>' : '') + '</div><div>' + (res.ok ? fmt(res.freed) : '<button class="retry-btn" data-id="' + res.id + '">重试此项目</button>') + '</div>';
       if (res.ok) { const ck = div.querySelector('.ck path'); if (ck) ck.style.animationDelay = (0.15 + idx * 0.08) + 's'; }
       list.appendChild(div);
     });
