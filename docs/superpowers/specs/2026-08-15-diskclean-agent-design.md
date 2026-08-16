@@ -91,7 +91,7 @@ payload 结构：
 
 1. 格式检查：`DKC-` 前缀 + 分组格式
 2. HMAC 签名验证：签名不符 → 「密钥无效」
-3. 有效期：`当前Unix天数 ∈ [issueTime, issueTime + validDays]` → 过期提示「密钥已过期，请联系服务人员获取新密钥」
+3. 有效期：`当前时刻 ∈ [签发时刻(分钟取整), 签发时刻 + validDays×24h]`（v2 起，见 §4.1 附注）→ 过期提示「密钥已过期，请联系服务人员获取新密钥」
 4. 单机绑定：首次使用时把 `MachineGuid`（注册表 `HKLM\SOFTWARE\Microsoft\Cryptography`）写入本地状态文件；之后使用若 MachineGuid 不符 → 「此密钥已在其他电脑上使用」
 5. 时间回拨防护：状态文件记录 `lastSeen`（最后成功验证的时间）；若当前时间早于 lastSeen → 拒绝（防改系统时间绕过有效期）
 6. 状态文件位置：`%ProgramData%\DiskCleanAgent\license.dat`（JSON，存密钥哈希、MachineGuid、lastSeen）

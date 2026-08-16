@@ -17,7 +17,7 @@
 v0.2 新增：扫描进度条+动效、已选/共统计、管理员接口。v0.2.1 修复（验收反馈）：①切换磁盘后扫描/清理按所选盘过滤（非系统盘仅"回收站（本盘）"，服务端按盘校验，跨盘项 400）；②空间分布 TOP10 偶发不显示（C 盘全盘遍历超时 5→10 分钟）；③进度条改为确定式 0→100（条目+空间分布阶段加权，移除循环流光动画）。
 v0.2.2 新增：密钥有效期改为签发时刻起精确 N×24h（位布局 v2、版本号 2，v1 密钥全部作废）；keygen 增加管理密码门禁（SHA-256 哈希比对）、历史密钥记录（本机浏览器 localStorage，有效/过期分区）、模板未注入守卫与主密钥指纹显示；exe 验证成功显示精确到期时刻。
 
-- 61/61 测试全绿（`npm test`）；逐任务 TDD + spec 审查 + 质量审查（含安全实测：非盘根路径磁盘参数曾可清空系统盘回收站、非字符串参数曾可杀进程——均已修复并加守卫）
+- 70/70 测试全绿（`npm test`）；逐任务 TDD + spec 审查 + 质量审查（含安全实测：非盘根路径磁盘参数曾可清空系统盘回收站、非字符串参数曾可杀进程——均已修复并加守卫）
 - 产物已构建：`dist/DiskCleanAgent.exe` + `dist/keygen.html`
 - 主密钥指纹 `da73f44b`，存于 `tools/master.key`（gitignored，**务必备份**——丢失后旧密钥全部作废、exe/keygen 配对断裂）
 - 尚未完成：v0.2.1 切盘修复的真实浏览器端到端点击验收、正式外发（未做代码签名，客户机 SmartScreen 会提示未知发布者）
@@ -50,7 +50,7 @@ DiskCleanAgent/
 ├── src/
 │   ├── main.js          # 入口：UAC 提权重启、端口+token、浏览器、心跳退出（in-flight 保护）
 │   ├── server.js        # HTTP 路由：token 门禁、scan 增量轮询、verify/clean（密钥+id 校验）
-│   ├── license.js       # 密钥生成/验证（BigInt packBits、HMAC 截断签名、日粒度有效期）
+│   ├── license.js       # 密钥生成/验证（BigInt packBits、HMAC 截断签名、分钟精度 N×24h 有效期）
 │   ├── psutil.js        # PowerShell 网关：runPs/runJson、getSysInfo、normalizeDisks
 │   ├── scanner.js       # 17 项扫描清单 + 并行分批 + 空间分布 Top10（.NET 栈遍历 PS）
 │   ├── cleaner.js       # 串行清理 + 失败重试 1 次 + 诊断联动 + 差值统计
@@ -61,7 +61,7 @@ DiskCleanAgent/
 │   ├── build.js         # SEA 打包流水线（主密钥注入、正向断言、fuse 校验、keygen 成品）
 │   ├── keygen.template.html  # 密钥生成器模板（纯 JS HMAC-SHA256，__MASTER_KEY__ 占位）
 │   └── master.key       # 主密钥 64 hex（gitignored）
-├── test/                # 43 个测试（node:test）：license/diagnose/scanner/cleaner/server/psutil/keygen-cross
+├── test/                # 70 个测试（node:test）：license/diagnose/scanner/cleaner/server/psutil/keygen-cross
 ├── docs/superpowers/
 │   ├── specs/2026-08-15-diskclean-agent-design.md   # 设计文档（权威需求）
 │   └── plans/2026-08-15-diskclean-agent.md          # 实施计划（11 任务）
@@ -104,7 +104,7 @@ DiskCleanAgent/
 
 ## 9. 后续优化方向（按优先级）
 
-1. **人工验收**：双击 exe + keygen 走完整流程，重点验收 v0.2.1 切盘修复（选非系统盘仅显示回收站+TOP10、清理只清所选盘、进度条 0→100 不循环）及 v0.2 新功能回归（最高优先）
+1. **人工验收 v0.2.2**：双击 exe + keygen 走完整流程——keygen 密码解锁/生成/历史记录、exe 验证显示"有效期至 精确时刻"（签发时刻+24h）、v1 旧密钥报无效；同时回归 v0.2.1 切盘修复（选非系统盘仅显示回收站+TOP10、清理只清所选盘、进度条 0→100 不循环）及 v0.2 新功能（最高优先）
 2. 可选：`signtool` 代码签名解决 SmartScreen 提示
 3. 完成页"预估 vs 实际释放"对比展示（spec §7，当前只显示实际值）
 4. "切换磁盘无需重新输密钥"（当前重扫会清 key，spec §7 未完全实现）
