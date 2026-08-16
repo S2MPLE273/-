@@ -18,7 +18,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
 #gate{position:fixed;inset:0;background:#f5f7fa;display:flex;justify-content:center;align-items:center;z-index:99}
 #gate .card{width:340px}
 .pw-msg{font-size:13px;color:#c0392b;margin-top:10px;display:none}
-.guard-err{background:#fdecea;border:1px solid #f5b7b1;color:#a93226;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px}
+.guard-err{position:relative;z-index:100;background:#fdecea;border:1px solid #f5b7b1;color:#a93226;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px}
 .h{font-size:15px;color:#445;margin:22px 0 8px}
 #hist-active .row,#hist-expired .row{display:flex;align-items:center;gap:8px;background:#fafbfc;border:1px solid #e3e8ee;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px}
 #hist-active .ktag{color:#0067c0;font-weight:600;min-width:96px}
@@ -38,7 +38,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
     <div class="sub">本页内含主密钥，仅限服务方使用</div>
     <input id="pw" type="password" placeholder="请输入管理密码">
     <button onclick="tryUnlock()">解锁</button>
-    <div id="pw-msg">密码错误</div>
+    <div id="pw-msg" class="pw-msg">密码错误</div>
   </div>
 </div>
 <div id="guard-err" hidden>⚠ 此页面未注入主密钥（勿直接打开模板文件），请使用构建产物 dist/keygen.html</div>
