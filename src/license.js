@@ -49,10 +49,14 @@ function createLicense({ masterKey }) {
   }
   function generate({ clientTag = '', validDays = 1, issueTime = Date.now() } = {}) {
     const vd = Math.max(1, Math.min(63, Math.floor(validDays) || 1)); // 钳位到 6 位（1-63），防止静默回绕
-    const issueDay = Math.floor((issueTime - EPOCH) / DAY_MS);
+    const t = Math.floor(issueTime / 60000) * 60000; // 签发时刻分钟取整（密钥内嵌时刻）
+    const issueDay = Math.floor((t - EPOCH) / DAY_MS);
+    const withinDay = (t - EPOCH) % DAY_MS;
+    const issueHour = Math.floor(withinDay / 3600000);
+    const issueMinute = Math.floor((withinDay % 3600000) / 60000);
     const tagHash = clientTag ? crypto.createHash('sha256').update(String(clientTag), 'utf8').digest().readUInt16BE(0) : 0;
-    // 52 bits payload（补零至 56 bits = 7 字节）+ 3 字节签名 = 10 字节 = 80 bits = 16 chars = 4 组
-    const payload = packBits([[1, 2], [issueDay, 16], [vd, 6], [tagHash, 16], [0, 12]]);
+    // 52 bits payload v2（补零至 56 bits = 7 字节）+ 3 字节签名 = 10 字节 = 80 bits = 16 chars = 4 组
+    const payload = packBits([[2, 2], [issueDay, 16], [vd, 6], [tagHash, 16], [issueHour, 5], [issueMinute, 6], [0, 1]]);
     const sig = sign(payload);
     const body = b32encode(Buffer.concat([payload, sig]));
     return 'DKC-' + group(body.slice(0, 16));
@@ -66,12 +70,12 @@ function createLicense({ masterKey }) {
     const payload = buf.slice(0, 7);
     const sig = buf.slice(7, 10);
     if (!crypto.timingSafeEqual(sign(payload), sig)) return { ok: false, reason: 'invalid' };
-    const [version, issueDay, validDays] = unpackBits(payload, [2, 16, 6]);
-    if (version !== 1) return { ok: false, reason: 'invalid' };
+    const [version, issueDay, validDays, , issueHour, issueMinute] = unpackBits(payload, [2, 16, 6, 16, 5, 6, 1]);
+    if (version !== 2) return { ok: false, reason: 'invalid' };
     const cur = now();
-    const issueMs = EPOCH + issueDay * DAY_MS;
-    // 日粒度：validDays=1 的密钥自签发时刻起，有效至 issueDay+1 当天结束（即 issueDay+2 的 0 点）
-    const expireMs = issueMs + (validDays + 1) * DAY_MS;
+    // v2：有效期 = 签发时刻（分钟精度）+ validDays×24h，精确到分钟
+    const issueMs = EPOCH + issueDay * DAY_MS + issueHour * 3600000 + issueMinute * 60000;
+    const expireMs = issueMs + validDays * DAY_MS;
     const keyHash = crypto.createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 16);
     const st = state && (state.entries || (state.entries = {}));
     const rec = st && st[keyHash];
