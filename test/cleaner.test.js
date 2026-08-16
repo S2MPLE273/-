@@ -76,27 +76,25 @@ Write-Output ('{"error":"' + ($err -replace '"','\\"') + '"}')
   assert.match(r.error, /bad json output/);
 });
 
-test('recycle clean: script uses SHEmptyRecycleBin per-disk, not global Clear-RecycleBin', () => {
-  assert.match(CLEAN_ENTRIES_PS, /SHEmptyRecycleBin/);
+test('recycle clean: SHEmptyRecycleBin branch removed (elevated E_UNEXPECTED fix)', () => {
+  assert.doesNotMatch(CLEAN_ENTRIES_PS, /SHEmptyRecycleBin/);
   assert.doesNotMatch(CLEAN_ENTRIES_PS, /Clear-RecycleBin/);
 });
 
-test('recycle clean: disk root passed to PS', async () => {
+test('recycle clean: deletes selected-drive $RECYCLE.BIN via dir kind', async () => {
   const params = [];
   const cleaner = createCleaner(fake({ scriptResults: {} }));
   cleaner._psutil.runJson = async (n, b, p) => { params.push(p); return { ok: true, data: [{ id: 'recycle_bin', ok: true, freed: 100, error: '' }] }; };
   const res = await cleaner.clean({ disk: 'D:\\', items: ['recycle_bin'] }, () => {}, { retryDelayMs: 0 });
   assert.equal(res.results[0].ok, true);
   assert.equal(params[0].disk, 'D:\\');
+  assert.deepStrictEqual(params[0].entries[0], { id: 'recycle_bin', kind: 'dir', paths: ['D:\\$RECYCLE.BIN'], filters: null });
 });
 
-test('SHEmptyRecycleBin P/Invoke compiles on real PS (integration, no side effect)', async () => {
-  const probe = `
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class DKC_RB { [DllImport("Shell32.dll", CharSet=CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr hwnd, string root, uint flags); }'
-Write-Output '{"compiled":true}'
-`;
-  const r = await psutil.runJson('rbprobe.ps1', probe, {}, { timeoutMs: 60000 });
-  assert.equal(r.ok, true);
-  assert.equal(r.data[0].compiled, true);
+test('recycle clean: C: shorthand normalized to C:\\$RECYCLE.BIN', async () => {
+  const params = [];
+  const cleaner = createCleaner(fake({ scriptResults: {} }));
+  cleaner._psutil.runJson = async (n, b, p) => { params.push(p); return { ok: true, data: [{ id: 'recycle_bin', ok: true, freed: 0, error: '' }] }; };
+  await cleaner.clean({ disk: 'C:', items: ['recycle_bin'] }, () => {}, { retryDelayMs: 0 });
+  assert.deepStrictEqual(params[0].entries[0].paths, ['C:\\$RECYCLE.BIN']);
 });

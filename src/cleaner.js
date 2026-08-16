@@ -26,11 +26,6 @@ foreach($e in $data.entries){
           }
         }
       }
-      'recycle' {
-        Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class DKC_RB { [DllImport("Shell32.dll", CharSet=CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr hwnd, string root, uint flags); }'
-        $rc = [DKC_RB]::SHEmptyRecycleBin([IntPtr]::Zero, $data.disk, 7)
-        if($rc -ne 0){ $ok=$false; $err = 'SHEmptyRecycleBin failed: ' + $rc }
-      }
       'dism' {
         [Console]::OutputEncoding = [Text.Encoding]::Default
         $r = Dism.exe /Online /Cleanup-Image /StartComponentCleanup 2>&1
@@ -61,7 +56,6 @@ const LOCAL = process.env.LOCALAPPDATA || (homedir() + '\\AppData\\Local');
 const KINDS = {
   winsxs: { kind: 'dism', paths: [] },
   hibernation: { kind: 'hiber', paths: [] },
-  recycle_bin: { kind: 'recycle', paths: [] },
   thumb_cache: { kind: 'dir', paths: [LOCAL + '\\Microsoft\\Windows\\Explorer'], filters: 'thumbcache_*.db' },
 };
 
@@ -91,7 +85,10 @@ function createCleaner({ psutil, diagnose }) {
         onProgress(r);
         continue;
       }
-      const spec = KINDS[id] || { kind: 'dir', paths: def.paths, filters: null };
+      // SHEmptyRecycleBin 在提权（高完整性）进程返回 E_UNEXPECTED（跨完整性 Shell 隔离），回收站改走 dir 直删所选盘内容
+      const spec = id === 'recycle_bin'
+        ? { kind: 'dir', paths: [disk + '$RECYCLE.BIN'], filters: null }
+        : (KINDS[id] || { kind: 'dir', paths: def.paths, filters: null });
       let r = await cleanOne(spec.kind, id, spec.paths, spec.filters, disk);
       if (!r.ok) {
         await new Promise(res => setTimeout(res, retryDelayMs));

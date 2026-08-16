@@ -94,7 +94,7 @@ DiskCleanAgent/
 
 - 非系统盘可清理项仅回收站（本盘），另显示该盘空间分布 TOP10（白名单底线，防误删客户数据；扫描/清理项按所选盘过滤，服务端按盘校验）
 - `winsxs`/`driver_store` 扫描预估为 0，实际释放按清理后差值计；driver_store 清理未实现（明确报"暂不支持"）
-- 回收站按所选盘清空（SHEmptyRecycleBin API），统计为所选盘 `$RECYCLE.BIN` 实际大小
+- 回收站按所选盘清空（直接删除该盘 `$RECYCLE.BIN` 内容——SHEmptyRecycleBin 在提权进程返回 E_UNEXPECTED 已弃用，实测 2026-08-16），统计为所选盘 `$RECYCLE.BIN` 实际大小；桌面回收站视图可能延迟刷新（打开回收站即恢复）
 - exe 未做代码签名（SmartScreen 未知发布者）；主密钥在 exe 内可被逆向（离线方案固有风险）
 - 管理员接口权限等价于持有主密钥：能逆向提取 exe 内主密钥者获得同等管理权限（与 keygen.html 同级，离线方案固有风险）；客户正常流程不受影响（无 admin 头一律 401）
 - Edge/Chrome 缓存只扫 `User Data\Default` 单一 profile
