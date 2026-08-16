@@ -81,8 +81,8 @@ test('keygen password hash constant matches SHA-256 of the password', () => {
   const algo = makeApi(MASTER);
   // 密码明文不入库：本地校验"明文→哈希"对应关系需显式提供 DKC_KEYGEN_PW 环境变量（可选断言）
   const pw = process.env.DKC_KEYGEN_PW || '';
-  if (pw) assert.equal(algo.sha256HexText(pw), '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
-  assert.equal(algo.PASS_HASH, '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
+  if (pw) assert.equal(algo.sha256HexText(pw), '7284519dd9c9a67a36e87a20a3e89dd0bed7ff84caf276994820b7191a4d6301');
+  assert.equal(algo.PASS_HASH, '7284519dd9c9a67a36e87a20a3e89dd0bed7ff84caf276994820b7191a4d6301');
   assert.ok(typeof algo.PASS_HASH === 'string');
 });
 
