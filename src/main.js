@@ -72,10 +72,10 @@ async function main() {
   };
 
   let webui;
-  try { webui = require('./webui-inline'); } catch (e) { webui = { html: '', css: '', js: '' }; }
+  try { webui = require('./webui-inline'); } catch (e) { webui = { html: '', css: '', fx: '', js: '' }; }
   try {
     if (fs.existsSync(path.join(__dirname, 'webui', 'index.html'))) {
-      webui = { html: fs.readFileSync(path.join(__dirname, 'webui/index.html'), 'utf8'), css: fs.readFileSync(path.join(__dirname, 'webui/style.css'), 'utf8'), js: fs.readFileSync(path.join(__dirname, 'webui/app.js'), 'utf8') };
+      webui = { html: fs.readFileSync(path.join(__dirname, 'webui/index.html'), 'utf8'), css: fs.readFileSync(path.join(__dirname, 'webui/style.css'), 'utf8'), fx: fs.readFileSync(path.join(__dirname, 'webui/progressfx.js'), 'utf8'), js: fs.readFileSync(path.join(__dirname, 'webui/app.js'), 'utf8') };
     }
   } catch (e) {}
 

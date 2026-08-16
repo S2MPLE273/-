@@ -14,6 +14,55 @@
     not_yet_valid: '密钥尚未生效（本机时间早于签发时间过多），请检查本机时间或联系服务人员',
     clock_rollback: '检测到系统时间被回拨，请校正系统时间',
   };
+  const WAIT_QUIPS = [
+    '小胡同学正在跟 cc 交涉，全力检测中…',
+    '千万别点刷新！虽然条不动，但它在努力奔跑…',
+    '有一种等待叫进度 99%——最后 1% 是最遥远的距离…',
+    '磁盘正在坦白从宽，垃圾藏匿点逐一交代…',
+    '正在数你磁盘里的垃圾有几斤几两…',
+    '别人家电脑 5G 冲浪，这台正在 2G 爬行…',
+    '好饭不怕晚，垃圾不怕多，稍安勿躁…',
+    '小胡同学正在给磁盘做全身扫描，仔细到每个角落…',
+    '扫描进度比砍一刀诚实多了，99% 真的会到 100%…',
+    '别急，磁盘已经汗流浃背了…',
+    '正在和回收站谈判：你里面东西有点多啊…',
+    '听说拍两下电脑扫描会变快？实测：电脑会疼，速度没变…',
+    '正在检查每个角落，连灰尘都无处可藏…',
+    '你的电脑正在深呼吸，检测完就满血复活…',
+  ];
+  const fx = { realPct: 0, visual: 0, labels: [], phase: 'items', startedAt: 0, lastRealChangeAt: 0, quipIdx: 0, lastQuipAt: 0, timer: null };
+  function fxStart() {
+    fxStop();
+    fx.realPct = 0; fx.visual = 0; fx.labels = []; fx.phase = 'items';
+    fx.startedAt = Date.now(); fx.lastRealChangeAt = Date.now(); fx.lastTickAt = Date.now(); fx.quipIdx = 0; fx.lastQuipAt = 0;
+    $('prog-timer').hidden = false;
+    fx.timer = setInterval(fxTick, 250);
+  }
+  function fxStop() { if (fx.timer) { clearInterval(fx.timer); fx.timer = null; } }
+  function fxTick() {
+    const now = Date.now();
+    const dt = Math.min(1, (now - fx.lastTickAt) / 1000); // 后台标签页节流时按实测步长，爬行速率不失真
+    fx.lastTickAt = now;
+    const P = window.dkcProgress || { stepVisual: () => fx.visual, fmtElapsed: () => '', nextQuip: () => ({ text: '', idx: 0 }) };
+    fx.visual = P.stepVisual(fx.visual, fx.realPct, dt);
+    $('prog-fill').style.width = fx.visual + '%';
+    $('prog-bar').setAttribute('aria-valuenow', String(Math.round(fx.visual)));
+    $('prog-timer').textContent = '已用时 ' + P.fmtElapsed(now - fx.startedAt);
+    const waiting = fx.visual >= 99 || now - fx.lastRealChangeAt > 8000;
+    if (waiting) {
+      if (now - fx.lastQuipAt >= 8000) {
+        const r = P.nextQuip(WAIT_QUIPS, fx.quipIdx);
+        fx.quipIdx = r.idx; fx.lastQuipAt = now;
+        $('prog-text').textContent = r.text;
+      }
+    } else if (fx.phase === 'space') {
+      $('prog-text').textContent = '正在分析磁盘空间分布（较大磁盘约需 1–3 分钟）';
+    } else if (fx.phase === 'special') {
+      $('prog-text').textContent = '正在统计回收站与特殊项…';
+    } else {
+      $('prog-text').textContent = '正在扫描：' + (fx.labels.length ? fx.labels.join('、') : '…');
+    }
+  }
 
   function fmt(n) {
     if (!n) return '0 B';
@@ -114,12 +163,14 @@
     $('prog-bar').setAttribute('aria-valuenow', '0');
     $('prog-text').textContent = '正在准备扫描…';
     $('prog-meta').textContent = '准备扫描…';
+    fxStart();
     $('sel-line').hidden = true;
     $('view-scan').setAttribute('aria-busy', 'true');
     show('scan'); $('scan-title').textContent = '正在扫描 ' + state.disk + ' …';
     $('scan-sub').textContent = '可清理空间（实时累计）';
     const r = await api('POST', '/api/scan', { disk: state.disk });
     if (!r.ok) {
+      fxStop();
       $('scan-progress').hidden = true;
       $('view-scan').setAttribute('aria-busy', 'false');
       $('scan-sub').textContent = '启动扫描失败';
@@ -148,20 +199,14 @@
     if (!p) return;
     const total = p.total || 0;
     const done = p.done || 0;
-    // 进度单位 = 扫描项 + 空间分布阶段 1 个单位；条只前进不循环
+    // 进度单位 = 扫描项 + 空间分布阶段 1 个单位；真实进度作为视觉进度的目标值
     const phaseDone = (p.phase === 'space' || p.phase === 'special') ? 1 : 0;
     const pct = total > 0 ? Math.min(100, Math.round((done + phaseDone) / (total + 1) * 100)) : 0;
-    const bar = $('prog-bar');
-    $('prog-fill').style.width = pct + '%';
-    bar.setAttribute('aria-valuenow', String(pct));
-    $('prog-meta').textContent = done + ' / ' + total + ' 项 · ' + pct + '%';
-    if (p.phase === 'space') {
-      $('prog-text').textContent = '正在分析磁盘空间分布（较大磁盘约需 1–3 分钟）';
-    } else if (p.phase === 'special') {
-      $('prog-text').textContent = '正在统计回收站与特殊项…';
-    } else {
-      $('prog-text').textContent = '正在扫描：' + ((p.current && p.current.length) ? p.current.join('、') : '…');
-    }
+    if (pct !== fx.realPct) fx.lastRealChangeAt = Date.now();
+    fx.realPct = pct;
+    fx.labels = (p.current && p.current.length) ? p.current : [];
+    fx.phase = p.phase || 'items';
+    $('prog-meta').textContent = done + ' / ' + total + ' 项 · ' + Math.min(pct, 99) + '%';
   }
 
   function updateSummary() {
@@ -201,6 +246,7 @@
     const r = await api('GET', '/api/scan/' + id);
     if (!r.ok) {
       clearInterval(pollTimer);
+      fxStop();
       $('scan-progress').hidden = true;
       $('view-scan').setAttribute('aria-busy', 'false');
       $('scan-title').textContent = '扫描失败';
@@ -215,6 +261,7 @@
     if (r.data.progress) renderProgress(r.data.progress);
     if (r.data.status === 'done') {
       clearInterval(pollTimer);
+      fxStop();
       if (r.data.error) {
         $('scan-progress').hidden = true;
         $('view-scan').setAttribute('aria-busy', 'false');
@@ -223,7 +270,7 @@
         return;
       }
       state.scanDone = true;
-      $('scan-title').textContent = '扫描完成 · ' + state.disk;
+      $('scan-title').textContent = '扫描完成 · ' + state.disk + '（用时 ' + window.dkcProgress.fmtElapsed(Date.now() - fx.startedAt) + '）';
       $('scan-sub').textContent = '勾选要清理的项目，验证密钥后开始清理';
       renderDist(r.data.spaceDist);
       $('license-box').hidden = false;
