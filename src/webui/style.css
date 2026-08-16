@@ -32,6 +32,9 @@ h3 { font-size: 15px; margin-bottom: 8px; }
 .risk-low { color: #2e9e5b; } .risk-medium { color: #e6a23c; } .risk-high { color: #d9534f; }
 .license-box .row { display: flex; gap: 10px; margin: 10px 0; }
 #key-input { flex: 1; padding: 10px 12px; border: 1px solid #ccd; border-radius: 8px; font-size: 14px; letter-spacing: 1px; }
+#device-row { margin-top: 8px; }
+#device-code { font-family: Consolas, monospace; font-size: 12px; word-break: break-all; }
+#device-row .btn-secondary { padding: 2px 10px; font-size: 12px; border-radius: 6px; }
 #key-status.ok { color: #2e9e5b; } #key-status.bad { color: #d9534f; }
 .dist-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
 .dist-row .dp { width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #556; }

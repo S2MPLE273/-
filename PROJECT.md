@@ -12,7 +12,13 @@
 
 ## 2. 当前阶段
 
-**v0.2.3：回收站清理修复（提权直删）+ 失败项原始错误显示，已人工验收通过（2026-08-16）。**
+**v0.2.4：密钥验证 24h 时钟容差 + 密钥设备绑定 v3（2026-08-16）。**
+
+- 修复"先无效、过会儿又有效"：v2 密钥内嵌签发时刻（分钟精度），原验证 `cur < issueMs` 即拒绝——签发机时钟略快于客户机（秒级偏差即可触发）就误报无效，客户机时钟越过签发时刻后自动恢复。现改为 `cur < issueMs - 24h` 才判时间异常；到期时刻保持严格（不延长有效期）。keygen 新增本机时间显示。
+- 密钥设备绑定（keygen 可选"客户设备码"）：设备码（MachineGuid 归一化 32 hex）哈希烙入 tagHash、version=3；验证端 v3 强制比对本机 MachineGuid 哈希，不符提示"此密钥已绑定其他设备"。v2 忽略 tagHash（旧密钥行为不变；"客户备注"不再进密钥，仅存 keygen 历史）。客户界面新增本机设备码展示+复制（原仅在管理面板可见）。注意：跨设备"已使用"检测离线不可实现（license.dat 是本机状态），必须签发时烙入设备码。
+- 77/77 测试全绿（`npm test`）；逐任务 TDD + spec 审查 + 质量审查
+
+v0.2.3：回收站清理修复（提权直删）+ 失败项原始错误显示，已人工验收通过（2026-08-16）。
 
 v0.2 新增：扫描进度条+动效、已选/共统计、管理员接口。v0.2.1 修复（验收反馈）：①切换磁盘后扫描/清理按所选盘过滤（非系统盘仅"回收站（本盘）"，服务端按盘校验，跨盘项 400）；②空间分布 TOP10 偶发不显示（C 盘全盘遍历超时 5→10 分钟）；③进度条改为确定式 0→100（条目+空间分布阶段加权，移除循环流光动画）。
 v0.2.2 新增：密钥有效期改为签发时刻起精确 N×24h（位布局 v2、版本号 2，v1 密钥全部作废）；keygen 增加管理密码门禁（SHA-256 哈希比对）、历史密钥记录（本机浏览器 localStorage，有效/过期分区）、模板未注入守卫与主密钥指纹显示；exe 验证成功显示精确到期时刻。
@@ -30,7 +36,7 @@ v0.2.3 修复：回收站清理必失败（SHEmptyRecycleBin 在提权进程返�
 | 文件 | 给谁 | 用法 |
 |---|---|---|
 | `dist/DiskCleanAgent.exe` | 客户 | 双击 → UAC 提权 → 浏览器自动打开 → 选盘扫描 → 输密钥 → 勾选清理 |
-| `dist/keygen.html` | 服务方 | 双击浏览器打开 → 输客户备注 + 有效期 → 生成 `DKC-XXXX-XXXX-XXXX-XXXX`（打开需输入管理密码） |
+| `dist/keygen.html` | 服务方 | 双击浏览器打开 → 输客户备注 + 有效期 +（可选）客户设备码 → 生成 `DKC-XXXX-XXXX-XXXX-XXXX`（打开需输入管理密码；填设备码则仅该设备可用） |
 
 构建命令：`npm run build`（幂等，产物到 `dist/`，全部 gitignored）。
 
@@ -39,7 +45,7 @@ v0.2.3 修复：回收站清理必失败（SHEmptyRecycleBin 在提权进程返�
 - **Node 24 + SEA 单文件打包**（esbuild bundle + postject 注入 blob），零运行时依赖
 - **本地 HTTP 服务**（127.0.0.1 随机端口 + 96-bit 随机 token 于 URL 查询参数）→ 浏览器 Web UI（原生 HTML/CSS/JS，构建时内嵌进 bundle）
 - **PowerShell 子进程**执行全部系统操作（扫描/清理/诊断），参数 Base64 JSON 传递
-- **密钥**：HMAC-SHA256 离线验证 + 单机绑定（MachineGuid）+ 时间回拨防护，状态存 `%ProgramData%\DiskCleanAgent\license.dat`
+- **密钥**：HMAC-SHA256 离线验证 + 可选设备绑定（v3 密钥烙入 MachineGuid 哈希）+ 本机状态绑定 + 时间回拨防护 + 24h 时钟容差，状态存 `%ProgramData%\DiskCleanAgent\license.dat`
 - **扫描进度**：scanAll 的 onPhase 回调（items 批次/空间分布/特殊项三阶段）→ task.progress → GET /api/scan/:id 增量返回；UI 进度卡（确定式 0→100，条目+空间分布阶段加权）；扫描/清理项按所选盘过滤（非系统盘仅回收站·本盘）
 - **管理员接口**：`X-Admin-Key` 头（64 hex 主密钥，timingSafeEqual）→ `/api/admin/status|clean|license/reset`（状态查看/免密钥清理/授权重置）；UI 页脚"服务方入口"管理面板（主密钥仅存 sessionStorage）
 - **失败诊断**：错误分类 + 安全软件进程检测（火绒/360/管家/毒霸/Defender）→ 针对性建议卡片 + 单项目重试
@@ -79,7 +85,7 @@ DiskCleanAgent/
 6. **PS 大目录递归用 .NET 栈遍历**（跳过 ReparsePoint），`Get-ChildItem -Recurse` 遇 junction 静默返回空
 7. **PS 错误文本嵌入 JSON 用 `ConvertTo-Json -Compress`**，手写 `-replace` 转义会漏反斜杠/换行
 8. **JS 位打包用 BigInt**（license.js 与 keygen 模板的 packBits）——32 位位运算会截断 56-bit payload
-9. **密钥位布局 v2（硬约束，两处实现必须一致）**：`[[1,2],[issueDay,16],[validDays,6],[tagHash,16],[0,12]]` → v2 为 `[[2,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]`（version=2；有效期 = 分钟取整的签发时刻 + validDays×24h）+ HMAC-SHA256 截 3 字节；改算法必须跑 `test/keygen-cross.test.js`（v1 密钥已全部作废）
+9. **密钥位布局（硬约束，两处实现必须一致）**：`[[2,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]` + HMAC-SHA256 截 3 字节；version=2 忽略 tagHash（不绑定设备），version=3 强制 tagHash = SHA-256(归一化设备码) 前 2 字节（v0.2.4 起，v1 已作废）；改算法必须跑 `test/keygen-cross.test.js`。验证侧另有 24h 时钟容差（`cur < issueMs - 24h` 才判时间异常）与设备码归一化（仅保留 hex、小写）——两处实现必须一致
 10. **esbuild 注入主密钥用 JS API `define: {__MASTER_KEY__: JSON.stringify(key)}`**——shell 传参引号会被剥掉导致静默回退
 11. **磁盘参数必须 `C:` → `C:\` 标准化**（scanner 与 cleaner 入口都做）
 12. 修改 main.js 的 `__MASTER_KEY__` 分支时注意：bundle 里不得残留 sentinel 字符串（build.js 会断言）
@@ -97,6 +103,8 @@ DiskCleanAgent/
 - `winsxs`/`driver_store` 扫描预估为 0，实际释放按清理后差值计；driver_store 清理未实现（明确报"暂不支持"）
 - 回收站按所选盘清空（直接删除该盘 `$RECYCLE.BIN` 内容——SHEmptyRecycleBin 在提权进程返回 E_UNEXPECTED 已弃用，实测 2026-08-16），统计为所选盘 `$RECYCLE.BIN` 实际大小；桌面回收站视图可能延迟刷新（打开回收站即恢复）
 - exe 未做代码签名（SmartScreen 未知发布者）；主密钥在 exe 内可被逆向（离线方案固有风险）
+- 设备绑定 tagHash 仅 16 位（碰撞率 1/65536，位布局硬约束）；绑定密钥（version 3）在旧版 exe（<0.2.4）上直接报"密钥无效"（fail-closed，不会静默放行）——发绑定密钥前需确认客户已用新版 exe
+- 跨设备"密钥已被使用"离线不可检测（license.dat 是本机状态）——需严格单设备时必须签发时填写设备码；密钥签发机时钟不准（慢于真实时间）会导致密钥提前过期（容差只放宽生效侧、不放宽到期侧）
 - 管理员接口权限等价于持有主密钥：能逆向提取 exe 内主密钥者获得同等管理权限（与 keygen.html 同级，离线方案固有风险）；客户正常流程不受影响（无 admin 头一律 401）
 - Edge/Chrome 缓存只扫 `User Data\Default` 单一 profile
 - 浏览器 UI 未做自动化测试（API 层已集成验证；真实点击流程待人工验收）
@@ -118,6 +126,7 @@ DiskCleanAgent/
 
 ## 10. 里程碑提交
 
+- `d786d36` v0.2.4：密钥验证 24h 时钟容差（修复先无效后有效）+ 可选设备绑定 v3（keygen 设备码 + 客户界面设备码）
 - `4720a93`/`6b133ed` v0.2.3：回收站清理修复（提权 E_UNEXPECTED 取证 → dir 直删所选盘）+ 失败项原始错误显示
 - `d199564`/`05a4914`/`5821736`/`be86886`/`ef040fd`/`9f359d2` v0.2.2：密钥格式 v2 + keygen 密码/历史/守卫（子代理驱动开发 + 两阶段审查）
 - `d5c422c` v0.2.2 设计文档 + `bd327cb` 实施计划

@@ -1,7 +1,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const TOKEN = new URLSearchParams(location.search).get('token') || '';
-  let state = { disk: null, items: [], verified: false, key: null, cleaning: false, scanDone: false };
+  let state = { disk: null, items: [], verified: false, key: null, cleaning: false, scanDone: false, machineGuid: '' };
   let pollTimer = null;
   let renderSeq = 0;
   let adminKey = '';
@@ -10,8 +10,8 @@
   const LICENSE_MSGS = {
     invalid: '密钥无效，请核对输入',
     expired: '密钥已过期，请联系服务人员获取新密钥',
-    machine_mismatch: '此密钥已在其他电脑上使用',
-    clock_rollback: '系统时间异常，请校正时间',
+    machine_mismatch: '此密钥已绑定其他设备，请联系服务人员',
+    clock_rollback: '系统时间异常（与密钥签发时间相差过大），请校正时间或联系服务人员',
   };
 
   function fmt(n) {
@@ -59,9 +59,32 @@
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
 
+  function copyDeviceCode() {
+    const code = state.machineGuid;
+    if (!code) return;
+    const done = () => {
+      const b = $('btn-copy-device');
+      b.textContent = '已复制 ✓';
+      setTimeout(() => { b.textContent = '复制'; }, 1500);
+    };
+    if (navigator.clipboard) { navigator.clipboard.writeText(code).then(done, () => { fallbackCopy(code); done(); }); }
+    else { fallbackCopy(code); done(); }
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+
   async function loadOverview() {
     const r = await api('GET', '/api/overview');
     if (!r.ok) return;
+    state.machineGuid = r.data.machineGuid || '';
+    if (state.machineGuid) {
+      $('device-code').textContent = state.machineGuid;
+      $('device-row').hidden = false;
+    }
     const wrap = $('disk-cards'); wrap.innerHTML = '';
     (r.data.disks || []).forEach(d => {
       const used = d.total - d.free;
@@ -209,6 +232,7 @@
     }
   }
 
+  $('btn-copy-device').onclick = copyDeviceCode;
   $('btn-verify').onclick = async () => {
     const key = $('key-input').value.trim();
     const r = await api('POST', '/api/verify', { key });

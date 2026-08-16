@@ -28,10 +28,29 @@ const T = Date.UTC(2026, 7, 15, 12, 0); // 分钟对齐
 test('keygen and license.js share the v2 algorithm', () => {
   const lic = createLicense({ masterKey: MASTER });
   const algo = makeApi(MASTER);
-  const key = algo.generate({ clientTag: 'customer-A', validDays: 1, issueTime: T });
+  const key = algo.generate({ validDays: 1, issueTime: T });
   assert.match(key, /^DKC-/);
   const r = lic.verify(key, { now: () => T + 3600000 });
   assert.equal(r.ok, true);
+});
+
+test('keygen device-bound key: matching device ok, other machine mismatch', () => {
+  const lic = createLicense({ masterKey: MASTER });
+  const algo = makeApi(MASTER);
+  const key = algo.generate({ deviceCode: 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890', validDays: 1, issueTime: T });
+  const ok = lic.verify(key, { now: () => T + 3600000, machineGuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' });
+  assert.equal(ok.ok, true);
+  const bad = lic.verify(key, { now: () => T + 3600000, machineGuid: 'ffffffff-ffff-ffff-ffff-ffffffffffff' });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, 'machine_mismatch');
+});
+
+test('keygen device code normalization matches license.js (braces/case/dashes ignored)', () => {
+  const lic = createLicense({ masterKey: MASTER });
+  const algo = makeApi(MASTER);
+  const key = algo.generate({ deviceCode: '{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}', validDays: 1, issueTime: T });
+  const ok = lic.verify(key, { now: () => T + 3600000, machineGuid: 'a1b2c3d4e5f67890abcdef1234567890' });
+  assert.equal(ok.ok, true);
 });
 
 test('v2 cross: exact 24h boundary via keygen-generated key', () => {
@@ -51,10 +70,10 @@ test('v2 cross: issue time floored to minute in both implementations', () => {
   assert.equal(lic.verify(key, { now: () => T + 24 * 3600000 }).reason, 'expired');
 });
 
-test('keygen cross: validDays clamp + multibyte tag boundary', () => {
+test('keygen cross: validDays clamp', () => {
   const lic = createLicense({ masterKey: MASTER });
   const algo = makeApi(MASTER);
-  const key = algo.generate({ clientTag: '客户-张三-联想笔记本-2026年8月-编号0001', validDays: 100, issueTime: T });
+  const key = algo.generate({ validDays: 100, issueTime: T });
   assert.equal(lic.verify(key, { now: () => T + 3600000 }).ok, true);
   // validDays 100 被钳位到 63：+60 天仍有效
   assert.equal(lic.verify(key, { now: () => T + 60 * 24 * 3600000 }).ok, true);

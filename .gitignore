@@ -1,5 +1,6 @@
 node_modules/
 .superpowers/
+.claude/
 tools/master.key
 dist/
 src/webui-inline.js

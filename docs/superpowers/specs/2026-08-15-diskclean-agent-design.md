@@ -78,6 +78,10 @@ payload 结构：
 编码布局：payload（version+issueTime+validDays+clientTag）经 Base32 编码为前 3 组，sig 截断编码为第 4 组，共 4 组拼成 `DKC-XXXX-XXXX-XXXX-XXXX`。
 
 > **v2（2026-08-16，v0.2.2 起）**：位布局 `[[2,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]`，version=2。有效期 = 签发时刻（分钟取整）+ validDays×24h，1 天即精确 24 小时；v1 日粒度密钥全部作废。详见 `2026-08-16-v022-keygen-design.md`。
+>
+> **v0.2.4（2026-08-16）**：位布局不变，语义扩展——
+> - **时钟容差**：`cur < issueMs - 24h` 才判时间异常（原为 `cur < issueMs`）。签发机时钟略快于客户机（秒级即可触发）不再误报"无效"；到期时刻保持严格（不延长有效期）。
+> - **设备绑定（version 3）**：keygen 填写"客户设备码"（MachineGuid，归一化后 32 hex）→ tagHash 存其 SHA-256 前 2 字节、version=3；验证端 version 3 强制比对本机 MachineGuid 哈希，不符 → 「此密钥已绑定其他设备」。version=2 忽略 tagHash（旧密钥行为不变；原"客户备注"不再进密钥，仅存 keygen 历史）。
 
 ### 4.2 主密钥
 
@@ -91,10 +95,11 @@ payload 结构：
 
 1. 格式检查：`DKC-` 前缀 + 分组格式
 2. HMAC 签名验证：签名不符 → 「密钥无效」
-3. 有效期：`当前时刻 ∈ [签发时刻(分钟取整), 签发时刻 + validDays×24h]`（v2 起，见 §4.1 附注）→ 过期提示「密钥已过期，请联系服务人员获取新密钥」
-4. 单机绑定：首次使用时把 `MachineGuid`（注册表 `HKLM\SOFTWARE\Microsoft\Cryptography`）写入本地状态文件；之后使用若 MachineGuid 不符 → 「此密钥已在其他电脑上使用」
-5. 时间回拨防护：状态文件记录 `lastSeen`（最后成功验证的时间）；若当前时间早于 lastSeen → 拒绝（防改系统时间绕过有效期）
-6. 状态文件位置：`%ProgramData%\DiskCleanAgent\license.dat`（JSON，存密钥哈希、MachineGuid、lastSeen）
+3. 有效期：`当前时刻 ∈ [签发时刻(分钟取整) - 24h 容差, 签发时刻 + validDays×24h]`（v0.2.4 起，见 §4.1 附注）→ 过期提示「密钥已过期，请联系服务人员获取新密钥」
+4. 设备绑定（version 3 密钥）：比对归一化后的本机 `MachineGuid`（注册表 `HKLM\SOFTWARE\Microsoft\Cryptography`）哈希与密钥内 tagHash，不符 → 「此密钥已绑定其他设备」；version 2 密钥跳过此步
+5. 本机状态绑定：首次使用时把 MachineGuid 写入本地状态文件；之后使用若 MachineGuid 不符 → 拒绝（防止状态文件被拷贝；跨设备共用密钥离线不可检测，需设备码绑定）
+6. 时间回拨防护：状态文件记录 `lastSeen`（最后成功验证的时间）；若当前时间早于 lastSeen → 拒绝（防改系统时间绕过有效期）
+7. 状态文件位置：`%ProgramData%\DiskCleanAgent\license.dat`（JSON，存密钥哈希、MachineGuid、lastSeen）
 
 **使用语义**：密钥在有效期内（默认自签发起 24 小时）可**反复使用**——可多次扫描、多次清理、切换不同磁盘重复操作，均无需重新输入密钥（前端缓存已验证状态）。有效期过后再次清理时才要求新密钥。
 

@@ -24,6 +24,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
 #hist-active .ktag{color:#0067c0;font-weight:600;min-width:96px}
 #hist-active .kkey{font-family:Consolas,monospace;font-size:12px;color:#334;flex:1;word-break:break-all}
 #hist-active .krem{color:#2e9e5b;white-space:nowrap}
+#hist-active .kbound{color:#2e9e5b;font-size:11px;white-space:nowrap}
 #hist-expired .row{opacity:.55}
 #hist-expired .kkey{font-family:Consolas,monospace;font-size:12px;flex:1;word-break:break-all}
 .mini{background:#fff;border:1px solid #ccd;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer}
@@ -46,6 +47,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   <h1>🧹 DiskClean 密钥生成器</h1>
   <div class="sub">主密钥指纹：<b id="fp">-</b>（与程序管理面板指纹一致即为同步）</div>
   <div class="sub">仅供服务方使用 · 请勿外传本页面（内含主密钥）</div>
+  <div class="sub">本机时间：<b id="nowtime">-</b>（密钥按本机时钟签发，请保持时钟准确）</div>
   <label>客户备注（便于辨认，不会显示给客户）</label>
   <input id="tag" placeholder="如：王先生-联想笔记本">
   <label>有效期（天）</label>
@@ -57,6 +59,9 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
     <option value="30">30 天</option>
   </select>
   <div class="note2">1 天 = 生成时刻起整 24 小时（精确到分钟）</div>
+  <label>客户设备码（可选，绑定后仅该设备可用）</label>
+  <input id="device" placeholder="客户程序界面显示的设备码，如 a1b2c3d4-e5f6-…">
+  <div class="note2" id="device-hint" hidden></div>
   <button id="gen" onclick="doGen()">生成密钥</button>
   <div id="out">
     <div id="key"></div>
@@ -65,7 +70,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   <div class="h">历史密钥（本机浏览器存储）</div>
   <div id="hist-active"></div>
   <details id="hist-expired-box" hidden><summary style="font-size:12px;color:#889;cursor:pointer">已过期密钥</summary><div id="hist-expired"></div><button class="mini danger" onclick="clearExpired()">清空过期记录</button></details>
-  <div class="note">密钥在有效期内可反复使用；绑定首次使用的电脑（单机），过期后需重新生成。</div>
+  <div class="note">密钥在有效期内可反复使用。填写设备码后仅该设备可用（其他设备会提示已绑定）；不填则任意设备可用。过期后需重新生成。</div>
 </div>
 
 <script id="dkc-algo">
@@ -143,9 +148,10 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
     for (var j = 0; j + 5 <= bits.length; j += 5) s += ALPHABET[parseInt(bits.slice(j, j + 5), 2)];
     return s;
   }
-  function tagHash(tag) {
-    if (!tag) return 0;
-    var h = sha256(new TextEncoder().encode(String(tag))); // 与 license.js 一致：sha256 前 2 字节
+  // 设备码归一化：与 license.js normalizeDeviceCode 一致（大小写/连字符/花括号忽略）
+  function normalizeDeviceCode(s) { return String(s).toLowerCase().replace(/[^0-9a-f]/g, ''); }
+  function deviceHash(code) {
+    var h = sha256(new TextEncoder().encode(normalizeDeviceCode(code))); // sha256 前 2 字节（16-bit tagHash）
     return (h[0] << 8) | h[1];
   }
   function generate(opts) {
@@ -156,7 +162,9 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
     var withinDay = (issueTime - EPOCH) % DAY_MS;
     var issueHour = Math.floor(withinDay / 3600000);
     var issueMinute = Math.floor((withinDay % 3600000) / 60000);
-    var payload = packBits([[2, 2], [issueDay, 16], [validDays, 6], [tagHash(opts.clientTag || ''), 16], [issueHour, 5], [issueMinute, 6], [0, 1]]);
+    var deviceCode = opts.deviceCode ? normalizeDeviceCode(opts.deviceCode) : '';
+    var version = deviceCode ? 3 : 2; // 设备绑定 → v3（tagHash 校验）；否则 v2（tagHash 忽略）
+    var payload = packBits([[version, 2], [issueDay, 16], [validDays, 6], [deviceCode ? deviceHash(deviceCode) : 0, 16], [issueHour, 5], [issueMinute, 6], [0, 1]]);
     var sig = hmacSha256(MASTER, new Uint8Array(payload)).slice(0, 3);
     var full = payload.concat(Array.prototype.slice.call(sig)); // Uint8Array 转普通数组再拼接
     var body = b32encode(full);
@@ -175,6 +183,7 @@ button{width:100%;margin-top:18px;background:#0067c0;color:#fff;border:0;border-
   var masterOk = /^[0-9a-f]{64}$/.test(MASTER);
   (typeof window !== 'undefined' ? window : globalThis).dkcAlgo = {
     generate: generate,
+    normalizeDeviceCode: normalizeDeviceCode,
     sha256HexText: sha256HexText,
     remainingMs: remainingMs,
     masterOk: masterOk,
@@ -221,6 +230,7 @@ function renderHistory() {
     div.className = 'row';
     var expTs = it.issueTime + it.validDays * 86400000;
     div.innerHTML = '<div class="ktag">' + esc(it.tag || '（无备注）') + '</div>' +
+      (it.deviceCode ? '<span class="kbound">已绑定 ' + esc(it.deviceCode.slice(0, 8)) + '…</span>' : '') +
       '<div class="kkey">' + esc(it.key) + '</div>' +
       '<div class="krem">剩余 ' + fmtRem(row.rem) + '（至 ' + fmtDT(expTs) + '）</div>' +
       '<button class="mini" data-copy="' + esc(it.key) + '">复制</button>' +
@@ -266,11 +276,21 @@ function clearExpired() {
 function doGen() {
   var tag = document.getElementById('tag').value;
   var days = parseInt(document.getElementById('days').value, 10);
+  var rawDev = document.getElementById('device').value.trim();
+  var dev = window.dkcAlgo.normalizeDeviceCode(rawDev);
+  var hint = document.getElementById('device-hint');
+  hint.hidden = true;
+  if (rawDev && dev.length !== 32) {
+    hint.textContent = '设备码格式不正确：应为 32 位十六进制字符（大小写与连字符不限）';
+    hint.style.color = '#c0392b';
+    hint.hidden = false;
+    return;
+  }
   var t = Math.floor(Date.now() / 60000) * 60000; // 与密钥内嵌时刻一致
-  var key = window.dkcAlgo.generate({ clientTag: tag, validDays: days, issueTime: t });
+  var key = window.dkcAlgo.generate({ deviceCode: dev, validDays: days, issueTime: t });
   document.getElementById('key').textContent = key;
   document.getElementById('out').style.display = 'block';
-  histSave(hist().concat([{ key: key, tag: tag, validDays: Math.max(1, Math.min(63, days || 1)), issueTime: t }]));
+  histSave(hist().concat([{ key: key, tag: tag, deviceCode: dev, validDays: Math.max(1, Math.min(63, days || 1)), issueTime: t }]));
   renderHistory();
 }
 function copyKey() { copyText(document.getElementById('key').textContent, document.getElementById('copy')); }
@@ -287,6 +307,7 @@ function tryUnlock() {
 }
 
 (function init() {
+  document.getElementById('nowtime').textContent = fmtDT(Date.now());
   if (window.dkcAlgo.masterOk) {
     document.getElementById('fp').textContent = window.dkcAlgo.fingerprint;
   } else {
