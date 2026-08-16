@@ -79,8 +79,9 @@ test('history remainingMs formula identical to license.verify remainingMs', () =
 
 test('keygen password hash constant matches SHA-256 of the password', () => {
   const algo = makeApi(MASTER);
-  assert.equal(algo.sha256HexText('Hjh20050613'), '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
-  assert.notEqual(algo.sha256HexText('Hjh20050614'), '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
+  // 密码明文不入库：本地校验"明文→哈希"对应关系需显式提供 DKC_KEYGEN_PW 环境变量（可选断言）
+  const pw = process.env.DKC_KEYGEN_PW || '';
+  if (pw) assert.equal(algo.sha256HexText(pw), '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
   assert.equal(algo.PASS_HASH, '5fc9989839d6c0871e749306c1d1dad4cb2c23e89cc56321835eb622fef96e0d');
   assert.ok(typeof algo.PASS_HASH === 'string');
 });
