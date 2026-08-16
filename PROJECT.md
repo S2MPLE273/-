@@ -12,9 +12,10 @@
 
 ## 2. 当前阶段
 
-**v0.2.1 修复完成，待用户实测验收（2026-08-16）。**
+**v0.2.2：密钥格式 v2（精确 24h）+ keygen 密码/历史，待人工验收（2026-08-16）。**
 
 v0.2 新增：扫描进度条+动效、已选/共统计、管理员接口。v0.2.1 修复（验收反馈）：①切换磁盘后扫描/清理按所选盘过滤（非系统盘仅"回收站（本盘）"，服务端按盘校验，跨盘项 400）；②空间分布 TOP10 偶发不显示（C 盘全盘遍历超时 5→10 分钟）；③进度条改为确定式 0→100（条目+空间分布阶段加权，移除循环流光动画）。
+v0.2.2 新增：密钥有效期改为签发时刻起精确 N×24h（位布局 v2、版本号 2，v1 密钥全部作废）；keygen 增加管理密码门禁（SHA-256 哈希比对）、历史密钥记录（本机浏览器 localStorage，有效/过期分区）、模板未注入守卫与主密钥指纹显示；exe 验证成功显示精确到期时刻。
 
 - 61/61 测试全绿（`npm test`）；逐任务 TDD + spec 审查 + 质量审查（含安全实测：非盘根路径磁盘参数曾可清空系统盘回收站、非字符串参数曾可杀进程——均已修复并加守卫）
 - 产物已构建：`dist/DiskCleanAgent.exe` + `dist/keygen.html`
@@ -28,7 +29,7 @@ v0.2 新增：扫描进度条+动效、已选/共统计、管理员接口。v0.2
 | 文件 | 给谁 | 用法 |
 |---|---|---|
 | `dist/DiskCleanAgent.exe` | 客户 | 双击 → UAC 提权 → 浏览器自动打开 → 选盘扫描 → 输密钥 → 勾选清理 |
-| `dist/keygen.html` | 服务方 | 双击浏览器打开 → 输客户备注 + 有效期 → 生成 `DKC-XXXX-XXXX-XXXX-XXXX` |
+| `dist/keygen.html` | 服务方 | 双击浏览器打开 → 输客户备注 + 有效期 → 生成 `DKC-XXXX-XXXX-XXXX-XXXX`（打开需输入管理密码） |
 
 构建命令：`npm run build`（幂等，产物到 `dist/`，全部 gitignored）。
 
@@ -77,7 +78,7 @@ DiskCleanAgent/
 6. **PS 大目录递归用 .NET 栈遍历**（跳过 ReparsePoint），`Get-ChildItem -Recurse` 遇 junction 静默返回空
 7. **PS 错误文本嵌入 JSON 用 `ConvertTo-Json -Compress`**，手写 `-replace` 转义会漏反斜杠/换行
 8. **JS 位打包用 BigInt**（license.js 与 keygen 模板的 packBits）——32 位位运算会截断 56-bit payload
-9. **密钥位布局（硬约束，两处实现必须一致）**：`[[1,2],[issueDay,16],[validDays,6],[tagHash,16],[0,12]]` + HMAC-SHA256 截 3 字节；改算法必须跑 `test/keygen-cross.test.js`
+9. **密钥位布局 v2（硬约束，两处实现必须一致）**：`[[1,2],[issueDay,16],[validDays,6],[tagHash,16],[0,12]]` → v2 为 `[[2,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]`（version=2；有效期 = 分钟取整的签发时刻 + validDays×24h）+ HMAC-SHA256 截 3 字节；改算法必须跑 `test/keygen-cross.test.js`（v1 密钥已全部作废）
 10. **esbuild 注入主密钥用 JS API `define: {__MASTER_KEY__: JSON.stringify(key)}`**——shell 传参引号会被剥掉导致静默回退
 11. **磁盘参数必须 `C:` → `C:\` 标准化**（scanner 与 cleaner 入口都做）
 12. 修改 main.js 的 `__MASTER_KEY__` 分支时注意：bundle 里不得残留 sentinel 字符串（build.js 会断言）
@@ -98,6 +99,8 @@ DiskCleanAgent/
 - 管理员接口权限等价于持有主密钥：能逆向提取 exe 内主密钥者获得同等管理权限（与 keygen.html 同级，离线方案固有风险）；客户正常流程不受影响（无 admin 头一律 401）
 - Edge/Chrome 缓存只扫 `User Data\Default` 单一 profile
 - 浏览器 UI 未做自动化测试（API 层已集成验证；真实点击流程待人工验收）
+- keygen 历史记录存于生成密钥的那台电脑的浏览器 localStorage：换电脑/换浏览器/清浏览器数据会丢；管理密码仅防非技术性"顺手打开"（主密钥仍在文件中，技术人员可提取）
+- keygen 需输入管理密码解锁（密码仅以 SHA-256 哈希存于文件）；改密码需重算哈希替换模板常量后重新构建
 
 ## 9. 后续优化方向（按优先级）
 
@@ -114,6 +117,8 @@ DiskCleanAgent/
 
 ## 10. 里程碑提交
 
+- `d199564`/`05a4914`/`5821736`/`be86886`/`ef040fd`/`9f359d2` v0.2.2：密钥格式 v2 + keygen 密码/历史/守卫（子代理驱动开发 + 两阶段审查）
+- `d5c422c` v0.2.2 设计文档 + `bd327cb` 实施计划
 - `491c9e8` 合并远端 README 历史并推送 GitHub（首次上线）
 - `3012867` 记录 GitHub 远端仓库；清理 untracked masterkey.txt
 - `a089f90` 进度条确定式 0→100（v0.2.1）

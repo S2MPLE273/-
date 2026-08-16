@@ -77,6 +77,8 @@ payload 结构：
 
 编码布局：payload（version+issueTime+validDays+clientTag）经 Base32 编码为前 3 组，sig 截断编码为第 4 组，共 4 组拼成 `DKC-XXXX-XXXX-XXXX-XXXX`。
 
+> **v2（2026-08-16，v0.2.2 起）**：位布局 `[[2,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]`，version=2。有效期 = 签发时刻（分钟取整）+ validDays×24h，1 天即精确 24 小时；v1 日粒度密钥全部作废。详见 `2026-08-16-v022-keygen-design.md`。
+
 ### 4.2 主密钥
 
 32 字节随机 hex。存在于两处：

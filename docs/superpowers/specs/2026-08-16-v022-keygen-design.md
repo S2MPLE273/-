@@ -15,7 +15,7 @@
 
 ```
 v1: [[1,2],[issueDay,16],[validDays,6],[tagHash,16],[0,12]]
-v2: [[1,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]
+v2: [[2,2],[issueDay,16],[validDays,6],[tagHash,16],[issueHour,5],[issueMinute,6],[0,1]]
 ```
 
 - 总长不变（52 bits → 7 字节 payload），密钥外观长度不变（`DKC-XXXX-XXXX-XXXX-XXXX`）
