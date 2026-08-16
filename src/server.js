@@ -55,7 +55,7 @@ function createServer({ port, token, webui, license, scanner, cleaner, psutil, m
       return res.end(html);
     }
     if (req.method === 'GET' && p === '/api/overview') {
-      try { const info = await psutil.getSysInfo(); return json(res, 200, { ok: true, data: info }); }
+      try { const info = await psutil.getSysInfo(); info.version = version; return json(res, 200, { ok: true, data: info }); }
       catch (e) { return json(res, 500, { ok: false, error: e.message }); }
     }
     if (req.method === 'POST' && p === '/api/scan') {

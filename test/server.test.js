@@ -33,11 +33,12 @@ test('rejects requests without token', async () => {
   srv.close();
 });
 
-test('overview with token returns disks', async () => {
+test('overview with token returns disks and version', async () => {
   const srv = await makeServer(); const port = await listen(srv);
   const r = await req(port, 'GET', '/api/overview', null, 'tok');
   assert.equal(r.status, 200);
   assert.equal(r.body.data.disks.length, 1);
+  assert.equal(r.body.data.version, '9.9.9', 'overview exposes app version for footer display');
   srv.close();
 });
 

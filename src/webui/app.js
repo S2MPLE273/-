@@ -85,6 +85,7 @@
       $('device-code').textContent = state.machineGuid;
       $('device-row').hidden = false;
     }
+    if (r.data.version) $('app-ver').textContent = 'v' + r.data.version;
     const wrap = $('disk-cards'); wrap.innerHTML = '';
     (r.data.disks || []).forEach(d => {
       const used = d.total - d.free;
