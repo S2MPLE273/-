@@ -100,6 +100,7 @@ DiskCleanAgent/
 10. **esbuild 注入主密钥用 JS API `define: {__MASTER_KEY__: JSON.stringify(key)}`**——shell 传参引号会被剥掉导致静默回退
 11. **磁盘参数必须 `C:` → `C:\` 标准化**（scanner 与 cleaner 入口都做）
 12. 修改 main.js 的 `__MASTER_KEY__` 分支时注意：bundle 里不得残留 sentinel 字符串（build.js 会断言）
+13. **商业化与优化记录**：先扫后卖、客户版/服务版拆分、客户版移除管理后门、扫描提速优先、收缩承诺；详见 `docs/superpowers/plans/2026-08-18-commercialization-review.md`
 
 ## 7. 测试与开发工作流
 
