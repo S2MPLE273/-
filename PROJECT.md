@@ -12,13 +12,13 @@
 
 ## 2. 当前阶段
 
-**v0.3.0：扫描进度视觉优化（平滑走条 + 卡 99% 轮换文案 + 已用时计时），已人工验收通过（2026-08-17，PR #1 合回 main）。**
+**v0.3.1：完成页新增“扫描预估 vs 实际释放”对比，构建宿主改为标准 Node 优先（支持 PATH / DKC_NODE_EXE），并已推到 main。**
 
-- 进度条改为"视觉缓动"：真实进度（条目+空间分布阶段加权）作为目标值，视觉进度以指数缓动追随；真实进度停住时（如空间分布大目录遍历数分钟）视觉进度以 0.4%/秒缓慢爬升，**封顶 99%**（条只前进不后退），完成后进度卡收起、标题显示总用时
-- 卡 99% 或真实进度超过 8 秒不动时，主行轮换显示趣味文案（14 条拟人+段子混搭，含"小胡同学正在跟 cc 交涉"），每 8 秒换一条；正常阶段保留"正在扫描：项目名"原显示
-- 进度卡新增"已用时 mm:ss"计时（超 1 小时 h:mm:ss）；meta 显示 min(真实%, 99) 与条一致；后台标签页节流时按实测 tick 步长爬行
-- 新增 `src/webui/progressfx.js`（浏览器/Node 双兼容纯函数：stepVisual/nextQuip/fmtElapsed），webui 组装加 fx 脚本（build.js/main.js/server.js）；87/87 测试全绿（新增 8 个 progressfx + HTML 组装用例）
-- 工作流改进：分支+PR 合回 main（feat/smooth-progress），中文简洁提交信息
+- 完成页并排展示扫描预估、实际释放和差异文案；重试成功会实时刷新实际释放
+- 新增 src/webui/resultfx.js，把预估求和与差异文案提炼成浏览器/Node 双兼容纯函数
+- tools/build.js 不再默认复制 DSH Desktop/Electron 运行时；会先找 DKC_NODE_EXE，再找 PATH 里的 node.exe
+- package.json 版本号已更新到 0.3.1，新构建的 exe/footer 会显示新版本
+- 本次验证：pnpm test -- test/resultfx.test.js test/server.test.js、pnpm run build、新 exe 启动通过
 
 v0.2.5：时钟容差收紧为 4h + lastSeen 回拨容差 1h + 时间异常文案拆分（2026-08-17，独立审查后修复）。
 
@@ -140,6 +140,7 @@ DiskCleanAgent/
 
 ## 10. 里程碑提交
 
+- v0.3.1（2026-08-19）：完成页预估 vs 实际释放对比 + SEA 宿主修复（标准 Node 优先，支持 PATH / DKC_NODE_EXE）
 - v0.3.0（2026-08-17）：扫描进度视觉优化（平滑走条封顶 99% + 轮换趣味文案 + 已用时计时）
 - v0.2.5（2026-08-17）：时钟容差 24h→4h + lastSeen 回拨容差 1h + not_yet_valid/clock_rollback 文案拆分（独立审查后修复）
 - v0.2.4（2026-08-16）：密钥验证时钟容差（修复时钟偏差误判）+ 可选设备绑定 v3（keygen 设备码 + 客户界面设备码）
@@ -168,9 +169,9 @@ DiskCleanAgent/
 
 ## 11. 踩坑记录（后续任务默认先看）
 
-- 本机/当前 shell 里 `npm` 不一定在 PATH；先用 `Get-Command node, pnpm, npm` 看可用命令。这个仓库本次验证时实际可用的是 `pnpm.cmd`，所以定向验证用 `pnpm test -- ...`，构建用 `pnpm run build`。
+- 本机/当前 shell 里 npm 不一定在 PATH；先用 Get-Command node, pnpm, npm 看可用命令。这个仓库本次验证时实际可用的是 pnpm.cmd。E:\git+nodejs 需要放在 PATH 的根目录里，E:\git+nodejs\Git\cmd 只是 Git，不是 Node。定向验证优先用 pnpm test -- ...；构建如果落到 DSH/Electron，就先找 DKC_NODE_EXE 或 PATH 里的 node.exe。
 - `tools.read` 有 2000 行上限，长文件要按最后返回行号继续读，不能假设一次读满，也不能只靠固定 offset。
 - `run_code` 和工具输出必须是 lossless JSON，`undefined` 不能直接返回；需要时统一转成 `null`。
-- SEA 构建里，`postject` 这条链路直接走 `inject()` 比 CLI 更稳；注入后要再检查 `NODE_SEA_FUSE...` 是否真的翻成 `:1`。
+- SEA 构建必须复制标准 node.exe，不能复制 DSH Desktop/Electron 运行时；当前 shell 的 pnpm 会把 process.execPath 指到 DSH Desktop.exe，直接产出双击即退出的坏 exe。构建脚本现在会先找 DKC_NODE_EXE，再找 PATH 里的 node.exe。
 - `src/main.js` 的 dev fallback 和 `tools/build.js` 的打包内嵌都要同步带上 webui 资源；这次新增 `resultfx.js` 后，`fx` 必须是 `progressfx.js + resultfx.js`。
 - 改前端结果页时，先跑定向测试，再跑构建，不要为了局部 UI 改动一上来就全量测试。

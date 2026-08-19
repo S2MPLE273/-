@@ -58,7 +58,42 @@ function verifyFuseFlipped(exePath) {
   if (!buf.includes(Buffer.from(SENTINEL + ':1'))) throw new Error('SEA fuse not flipped in ' + exePath + ' — postject --sentinel-fuse failed');
 }
 
+function findNodeOnPath() {
+  const seen = new Set();
+  for (const entry of String(process.env.PATH || process.env.Path || '').split(path.delimiter)) {
+    const dir = entry.trim();
+    if (!dir) continue;
+    const key = dir.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const candidate = path.join(dir, 'node.exe');
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return '';
+}
+
+/**
+ * Resolves the real Node executable used as the SEA host binary.
+ * @returns {string} Absolute path to a standard node.exe.
+ */
+function resolveSeaNodeExe() {
+  const configured = (process.env.DKC_NODE_EXE || '').trim();
+  if (configured) {
+    if (!fs.existsSync(configured)) throw new Error('DKC_NODE_EXE not found: ' + configured);
+    return configured;
+  }
+  const pathNode = findNodeOnPath();
+  if (pathNode) return pathNode;
+  if (process.versions.electron) {
+    throw new Error('Current runtime is Electron, not standard Node.exe: ' + process.execPath + '. Install Node 24 or add the Node 24 directory to PATH, or set DKC_NODE_EXE to the full path of Node 24 node.exe before npm/pnpm run build.');
+  }
+  const exe = process.execPath;
+  if (!fs.existsSync(exe)) throw new Error('node executable not found: ' + exe);
+  return exe;
+}
+
 async function main() {
+  const nodeExe = resolveSeaNodeExe();
   const masterKey = ensureMasterKey();
   fs.mkdirSync(DIST, { recursive: true });
   buildWebuiInline();
@@ -87,10 +122,10 @@ async function main() {
     useCodeCache: true,
   };
   fs.writeFileSync(path.join(DIST, 'sea-config.json'), JSON.stringify(seaConfig));
-  execFileSync(process.execPath, ['--experimental-sea-config', path.join(DIST, 'sea-config.json')], { cwd: ROOT, stdio: 'inherit' });
+  execFileSync(nodeExe, ['--experimental-sea-config', path.join(DIST, 'sea-config.json')], { cwd: ROOT, stdio: 'inherit' });
 
   const exeOut = path.join(DIST, 'DiskCleanAgent.exe');
-  fs.copyFileSync(process.execPath, exeOut);
+  fs.copyFileSync(nodeExe, exeOut);
   // 直接调用 postject API 注入资源，避免 CLI 参数和 shell 路径差异。
   const blob = fs.readFileSync(path.join(DIST, 'sea-prep.blob'));
   await inject(exeOut, 'NODE_SEA_BLOB', blob, { sentinelFuse: SENTINEL });
