@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { inject } = require('postject');
 const esbuild = require('esbuild');
 
 const ROOT = path.join(__dirname, '..');
@@ -24,9 +25,14 @@ function ensureMasterKey() {
   return key.toLowerCase();
 }
 
+/**
+ * Generates the inline web UI module used by packaged builds.
+ * @returns {void}
+ */
 function buildWebuiInline() {
   const read = (f) => fs.readFileSync(path.join(ROOT, 'src', 'webui', f), 'utf8');
-  const js = `module.exports = ${JSON.stringify({ html: read('index.html'), css: read('style.css'), fx: read('progressfx.js'), js: read('app.js') })};\n`;
+  const fx = read('progressfx.js') + '\n' + read('resultfx.js');
+  const js = `module.exports = ${JSON.stringify({ html: read('index.html'), css: read('style.css'), fx, js: read('app.js') })};\n`;
   fs.writeFileSync(path.join(ROOT, 'src', 'webui-inline.js'), js);
 }
 
@@ -52,7 +58,7 @@ function verifyFuseFlipped(exePath) {
   if (!buf.includes(Buffer.from(SENTINEL + ':1'))) throw new Error('SEA fuse not flipped in ' + exePath + ' — postject --sentinel-fuse failed');
 }
 
-function main() {
+async function main() {
   const masterKey = ensureMasterKey();
   fs.mkdirSync(DIST, { recursive: true });
   buildWebuiInline();
@@ -85,13 +91,13 @@ function main() {
 
   const exeOut = path.join(DIST, 'DiskCleanAgent.exe');
   fs.copyFileSync(process.execPath, exeOut);
-  // 直接用 node 运行 postject 的 cli 入口（免 npx/shell，避免路径解析与注入差异）
-  // postject 后 Authenticode 签名失效，客户机 SmartScreen 会提示"未知发布者"；正式分发前可用 signtool 重新签名
-  execFileSync(process.execPath, [path.join(ROOT, 'node_modules', 'postject', 'dist', 'cli.js'), exeOut, 'NODE_SEA_BLOB', path.join(DIST, 'sea-prep.blob'), '--sentinel-fuse', SENTINEL], { cwd: ROOT, stdio: 'inherit' });
+  // 直接调用 postject API 注入资源，避免 CLI 参数和 shell 路径差异。
+  const blob = fs.readFileSync(path.join(DIST, 'sea-prep.blob'));
+  await inject(exeOut, 'NODE_SEA_BLOB', blob, { sentinelFuse: SENTINEL });
   verifyFuseFlipped(exeOut);
   console.log('built: ' + exeOut);
   console.log('keygen: ' + path.join(DIST, 'keygen.html'));
   console.log('master key fingerprint (exe/keygen): ' + masterKey.slice(0, 8));
 }
 
-main();
+main().catch((e) => { console.error(e); process.exit(1); });

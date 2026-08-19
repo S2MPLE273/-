@@ -71,6 +71,27 @@
     while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
     return v.toFixed(v >= 100 ? 0 : 1) + ' ' + u[i];
   }
+
+  /**
+   * 获取清理结果纯函数集合；缺失时保持结果页可渲染。
+   * @returns {{selectedEstimate: Function, compareNote: Function}} 清理结果辅助函数。
+   */
+  function resultFxApi() {
+    return window.dkcResult || { selectedEstimate: () => 0, compareNote: () => '实际释放按所选盘前后差值统计' };
+  }
+
+  /**
+   * 刷新完成页的扫描预估、实际释放和差异说明。
+   * @param {number} estimated 扫描预估字节数。
+   * @param {number} actual 实际释放字节数。
+   */
+  function renderDoneCompare(estimated, actual) {
+    const R = resultFxApi();
+    $('done-estimated').textContent = fmt(estimated);
+    $('done-freed').textContent = fmt(actual);
+    $('done-compare-note').textContent = R.compareNote(estimated, actual, fmt);
+  }
+
   function fmtWhen(remainingMs) {
     const d = new Date(Date.now() + remainingMs);
     const p = n => String(n).padStart(2, '0');
@@ -158,6 +179,7 @@
     $('space-dist').hidden = true; $('dist-bars').innerHTML = '';
     $('license-box').hidden = true;
     $('key-input').value = ''; $('clean-progress').textContent = '';
+    renderDoneCompare(0, 0);
     $('scan-progress').hidden = false;
     $('prog-fill').style.width = '0%';
     $('prog-bar').setAttribute('aria-valuenow', '0');
@@ -305,6 +327,7 @@
     $('btn-clean').disabled = true;
     $('clean-progress').textContent = '正在清理…';
     const ids = Array.from(document.querySelectorAll('.pick:checked')).map(cb => cb.dataset.id);
+    const doneEstimated = resultFxApi().selectedEstimate(state.items, ids);
     let r;
     try {
       r = await api('POST', adminKey ? '/api/admin/clean' : '/api/clean', { key: state.key, disk: state.disk, items: ids }, adminHeaders());
@@ -329,8 +352,8 @@
       return;
     }
     show('done');
-    let doneFreed = r.data.freedTotal;
-    $('done-freed').textContent = fmt(doneFreed);
+    let doneFreed = Number(r.data.freedTotal) || 0;
+    renderDoneCompare(doneEstimated, doneFreed);
     const list = $('done-list');
     list.innerHTML = '';
     (r.data.results || []).forEach((res, idx) => {
@@ -344,8 +367,8 @@
       b.onclick = async () => {
         const r2 = await api('POST', adminKey ? '/api/admin/clean' : '/api/clean', { key: state.key, disk: state.disk, items: [b.dataset.id] }, adminHeaders());
         if (r2.ok && r2.data.results[0] && r2.data.results[0].ok) {
-          doneFreed += r2.data.results[0].freed || 0;
-          $('done-freed').textContent = fmt(doneFreed);
+          doneFreed += Number(r2.data.results[0].freed) || 0;
+          renderDoneCompare(doneEstimated, doneFreed);
           b.closest('.item').outerHTML = '<div class="item"><div style="flex:1"><div class="iname">✓ ' + b.dataset.id + ' 重试成功</div></div><div class="isize">' + fmt(r2.data.results[0].freed) + '</div></div>';
         } else {
           b.closest('.item').querySelector('.iname').textContent = '✗ ' + b.dataset.id + ' 仍失败';

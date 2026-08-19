@@ -21,6 +21,13 @@ h3 { font-size: 15px; margin-bottom: 8px; }
 .btn-secondary { background: #fff; color: #0067c0; border: 1px solid #0067c0; border-radius: 10px; padding: 10px 22px; font-size: 14px; cursor: pointer; }
 .card { background: #fff; border-radius: 12px; padding: 16px; margin: 16px 0; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
 .big-num { font-size: 34px; font-weight: 800; color: #0067c0; margin: 6px 0; }
+.done-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0 6px; }
+.done-stat { min-width: 0; border-top: 3px solid #d8e3ef; padding-top: 10px; }
+.done-stat.actual { border-top-color: #0067c0; }
+.done-label { color: #778; font-size: 13px; margin-bottom: 4px; }
+.done-value { color: #334; font-size: 28px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+.done-stat.actual .done-value { color: #0067c0; }
+#done-list { margin-top: 16px; }
 .item { display: flex; gap: 10px; align-items: center; padding: 10px 4px; border-bottom: 1px solid #f0f2f5; }
 .item:last-child { border-bottom: 0; }
 .item .iname { font-size: 14px; }
@@ -70,6 +77,10 @@ footer { text-align: center; color: #99a; font-size: 12px; padding: 24px; }
 .ck { width: 18px; height: 18px; margin-right: 2px; vertical-align: -4px; }
 .ck path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: dkc-draw .25s ease-out forwards; }
 @keyframes dkc-draw { to { stroke-dashoffset: 0; } }
+
+@media (max-width: 560px) {
+  .done-compare { grid-template-columns: 1fr; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .prog-icon path, .prog-fill, .dots span, .item, .item.failed .iname, .ck path, .modal { animation: none !important; transition: none !important; }

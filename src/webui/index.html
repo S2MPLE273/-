@@ -60,8 +60,17 @@
   <!-- 视图 3: 完成 -->
   <section id="view-done" hidden>
     <h2>清理完成</h2>
-    <div class="big-num" id="done-freed">0 B</div>
-    <div class="sub">实际释放空间（所选盘差值）</div>
+    <div class="done-compare" aria-label="清理空间对比">
+      <div class="done-stat">
+        <div class="done-label">扫描预估</div>
+        <div class="done-value" id="done-estimated">0 B</div>
+      </div>
+      <div class="done-stat actual">
+        <div class="done-label">实际释放</div>
+        <div class="done-value" id="done-freed">0 B</div>
+      </div>
+    </div>
+    <div class="sub" id="done-compare-note">实际释放按所选盘前后差值统计</div>
     <div id="done-list"></div>
     <button id="btn-again" class="btn-secondary">切换磁盘</button>
   </section>

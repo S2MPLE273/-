@@ -1,6 +1,6 @@
 # DiskClean Agent — 项目记录
 
-> 最后更新：2026-08-16。本文件是项目状态的权威记录，修改代码前先读这里。
+> 最后更新：2026-08-19。本文件是项目状态的权威记录，修改代码前先读这里。
 
 ## 1. 项目是什么
 
@@ -127,7 +127,7 @@ DiskCleanAgent/
 
 1. ✅ **人工验收 v0.2.2（2026-08-16 通过）**：keygen 密码解锁/生成/历史记录、exe 验证显示"有效期至 精确时刻"、v1 旧密钥报无效、切盘修复与 v0.2 功能回归均通过（下一优先：正式外发前代码签名）
 2. 可选：`signtool` 代码签名解决 SmartScreen 提示
-3. 完成页"预估 vs 实际释放"对比展示（spec §7，当前只显示实际值）
+3. ✅ 完成页"预估 vs 实际释放"对比展示（spec §7，已完成 2026-08-19）
 4. "切换磁盘无需重新输密钥"（当前重扫会清 key，spec §7 未完全实现）
 5. 清理结果显示中文标签（当前显示原始 id 如 user_temp）
 6. driver_store 过期驱动清理（pnputil，风险高需谨慎设计）
@@ -136,6 +136,7 @@ DiskCleanAgent/
 9. 完成页 retry 按钮对 `retryable:false` 的尊重（当前所有失败项都显示重试）
 10. 清理过程逐项进度展示（当前 /api/clean 同步无进度反馈，扫描已解决）
 11. v0.3.0 审查遗留（Minor）：waiting 判定与文案节奏检查提取为 progressfx 纯函数并补测试；space 阶段"约需 1–3 分钟"提示可融入首个轮换文案
+12. 长期上下文压缩记录：新对话优先读 [docs/superpowers/plans/2026-08-18-diskclean-agent-context-snapshot.md](<E:\桌面\DiskCleanAgent\docs\superpowers\plans\2026-08-18-diskclean-agent-context-snapshot.md>)，用于恢复项目全貌、商业方向、硬约束和下一步任务
 
 ## 10. 里程碑提交
 
@@ -164,3 +165,12 @@ DiskCleanAgent/
 - `5e01335` 扫描编排（含 PS junction/排序两大平台 bug 修复）
 - `6ea9c57` 清理编排（freed 差值符号修正）
 - `7e98568` 密钥模块（packBits BigInt 修复）
+
+## 11. 踩坑记录（后续任务默认先看）
+
+- 本机/当前 shell 里 `npm` 不一定在 PATH；先用 `Get-Command node, pnpm, npm` 看可用命令。这个仓库本次验证时实际可用的是 `pnpm.cmd`，所以定向验证用 `pnpm test -- ...`，构建用 `pnpm run build`。
+- `tools.read` 有 2000 行上限，长文件要按最后返回行号继续读，不能假设一次读满，也不能只靠固定 offset。
+- `run_code` 和工具输出必须是 lossless JSON，`undefined` 不能直接返回；需要时统一转成 `null`。
+- SEA 构建里，`postject` 这条链路直接走 `inject()` 比 CLI 更稳；注入后要再检查 `NODE_SEA_FUSE...` 是否真的翻成 `:1`。
+- `src/main.js` 的 dev fallback 和 `tools/build.js` 的打包内嵌都要同步带上 webui 资源；这次新增 `resultfx.js` 后，`fx` 必须是 `progressfx.js + resultfx.js`。
+- 改前端结果页时，先跑定向测试，再跑构建，不要为了局部 UI 改动一上来就全量测试。
